@@ -10,7 +10,7 @@ def decode_brake_signal(messages):
 
 
 BRAKE_SIGNAL = OBDCommand(
-    "BRAKE_SIGNAL",
+    "Brake Signal",
     "Whether the braking signal is on or not",
     b"223F9F",
     0,

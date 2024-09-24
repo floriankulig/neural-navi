@@ -3,19 +3,19 @@ import time
 import csv
 import os
 import serial.tools.list_ports
-import numpy as np
 from custom_commands import BRAKE_SIGNAL
 from helpers import normalize, numeric_or_none
 
 INTERVAL = 0.5
+
+CUSTOM_COMMANDS = [BRAKE_SIGNAL]
 
 COMMANDS_TO_MONITOR = [
     obd.commands.SPEED,
     obd.commands.RPM,
     obd.commands.ACCELERATOR_POS_D,
     obd.commands.ENGINE_LOAD,
-    BRAKE_SIGNAL,
-]
+].extend(CUSTOM_COMMANDS)
 
 
 def find_com_ports():
@@ -26,6 +26,11 @@ def find_com_ports():
 def watch_commands(connection):
     for command in COMMANDS_TO_MONITOR:
         connection.watch(command)
+
+
+def support_custom_commands(connection):
+    for command in COMMANDS_TO_MONITOR:
+        connection.supported_commands.add(command)
 
 
 def main():
@@ -51,7 +56,7 @@ def main():
         print("Verbindung fehlgeschlagen. Bitte überprüfen Sie Ihre ELM327-Verbindung.")
         return
 
-    connection.supported_commands.add(BRAKE_SIGNAL)
+    support_custom_commands(connection)
     watch_commands(connection)
 
     print("Verbindung hergestellt. Starte das Logging...")
@@ -62,16 +67,7 @@ def main():
         file_name = f"logs/log-{time.strftime('%Y-%m-%d_%H-%M-%S')}.csv"
         with open(file_name, "x", newline="") as csvfile:
             writer = csv.writer(csvfile)
-            writer.writerow(
-                [
-                    "Time",
-                    "Vehicle Speed",
-                    "RPM",
-                    "Accelerator Position",
-                    "Engine Load",
-                    "Brake Signal",
-                ]
-            )
+            writer.writerow([command.name for command in COMMANDS_TO_MONITOR])
             while True:
                 timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
                 brake_signal = connection.query(BRAKE_SIGNAL)
