@@ -5,6 +5,7 @@ import os
 import serial.tools.list_ports
 import numpy as np
 from custom_commands import BRAKE_SIGNAL
+from helpers import normalize, numeric_or_none
 
 INTERVAL = 0.5
 
@@ -25,15 +26,6 @@ def find_com_ports():
 def watch_commands(connection):
     for command in COMMANDS_TO_MONITOR:
         connection.watch(command)
-
-
-def numeric_or_none(response):
-    value = (
-        response.value.magnitude
-        if response is not None and response.value is not None
-        else None
-    )
-    return round(value, 2) if value is not None else None
 
 
 def main():
@@ -86,7 +78,7 @@ def main():
                 brake_signal_value = bool(brake_signal.value)
                 rpm = connection.query(obd.commands.RPM)
                 vehicle_speed = connection.query(obd.commands.SPEED)
-                accelerator_pos = np.interp(
+                accelerator_pos = normalize(
                     connection.query(obd.commands.ACCELERATOR_POS_D),
                     [14.12, 82],
                     [0, 100],
