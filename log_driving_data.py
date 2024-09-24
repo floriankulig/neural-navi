@@ -15,7 +15,8 @@ COMMANDS_TO_MONITOR = [
     obd.commands.RPM,
     obd.commands.ACCELERATOR_POS_D,
     obd.commands.ENGINE_LOAD,
-].extend(CUSTOM_COMMANDS)
+]
+COMMANDS_TO_MONITOR.extend(CUSTOM_COMMANDS)
 
 
 def find_com_ports():
