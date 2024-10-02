@@ -30,7 +30,7 @@ def watch_commands(connection):
 
 
 def support_custom_commands(connection):
-    for command in COMMANDS_TO_MONITOR:
+    for command in CUSTOM_COMMANDS:
         connection.supported_commands.add(command)
 
 
@@ -68,7 +68,9 @@ def main():
         file_name = f"logs/log-{time.strftime('%Y-%m-%d_%H-%M-%S')}.csv"
         with open(file_name, "x", newline="") as csvfile:
             writer = csv.writer(csvfile)
-            writer.writerow([command.name for command in COMMANDS_TO_MONITOR])
+            writer.writerow(
+                ["Time"] + [command.name for command in COMMANDS_TO_MONITOR]
+            )
             while True:
                 timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
                 brake_signal = connection.query(BRAKE_SIGNAL)
@@ -81,18 +83,19 @@ def main():
                     [0, 100],
                 )
                 engine_load = connection.query(obd.commands.ENGINE_LOAD)
+
                 writer.writerow(
                     [
                         timestamp,
                         numeric_or_none(vehicle_speed),
                         numeric_or_none(rpm),
-                        numeric_or_none(accelerator_pos),
+                        accelerator_pos,
                         numeric_or_none(engine_load),
                         brake_signal_value,
                     ]
                 )
                 print(
-                    f"{timestamp} | {numeric_or_none(vehicle_speed)} KM/H | {numeric_or_none(rpm)} RPM | {numeric_or_none(accelerator_pos)} % | {numeric_or_none(engine_load)} % | {brake_signal_value}"
+                    f"{timestamp} | {numeric_or_none(vehicle_speed)} KM/H | {numeric_or_none(rpm)} RPM | {accelerator_pos} % | {numeric_or_none(engine_load)} % | {brake_signal_value}"
                 )
                 time.sleep(INTERVAL)
     except KeyboardInterrupt:
