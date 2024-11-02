@@ -44,24 +44,24 @@ file_path = os.path.join(LOG_DIRECTORY, selected_file)
 
 # CSV-Datei einlesen
 df = pd.read_csv(file_path, parse_dates=["Time"])
-# df = df[:250]  # Nur die ersten 250 Zeilen anzeigen
+df = df[:2000]  # Nur die ersten 250 Zeilen anzeigen
 
 # Plot-Setup
 fig, ax1 = plt.subplots(figsize=(len(df) / 10, 10))  # Ein breiterer Plot
 sns.set_theme(style="whitegrid")
 
 # Plot für die erste Y-Achse (Vehicle Speed, Accelerator Position, Engine Load)
-ax1.plot(df["Time"], df["Vehicle Speed"], label="Vehicle Speed (km/h)", color="blue")
+ax1.plot(df["Time"], df["SPEED"], label="Vehicle Speed (km/h)", color="blue")
 ax1.plot(
     df["Time"],
-    df["Accelerator Position"],
+    df["ACCELERATOR_POS_D"],
     label="Accelerator Position (%)",
     color="green",
 )
 # Calculate gear ratios
-gear_ratios = (df["Vehicle Speed"] / df["RPM"]) * 1000
-ax1.plot(df["Time"], gear_ratios, label="Gear Ratio", color="brown")
-ax1.plot(df["Time"], df["Engine Load"], label="Engine Load (%)", color="orange")
+# gear_ratios = (df["Vehicle Speed"] / df["RPM"]) * 1000
+# ax1.plot(df["Time"], gear_ratios, label="Gear Ratio", color="brown")
+# ax1.plot(df["Time"], df["Engine Load"], label="Engine Load (%)", color="orange")
 
 ax1.set_xlabel("Time")
 ax1.set_ylabel("Values (Speed, Accelerator, Engine Load)")
