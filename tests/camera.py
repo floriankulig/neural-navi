@@ -14,7 +14,7 @@ def setup_camera():
 
 def create_image_directory():
     """Create a directory for the current session using timestamp"""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     directory = f"images/{timestamp}"
     os.makedirs(directory, exist_ok=True)
     return directory
