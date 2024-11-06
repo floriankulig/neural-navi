@@ -4,17 +4,19 @@ import time
 import cv2
 import os
 import csv
+from datetime import datetime
 
 OUTPUT_PATH = "recordings"
 TIME_FORMAT_FILES = "%Y-%m-%d_%H-%M-%S"
-TIME_FORMAT_LOG = "%Y-%m-%d_%H-%M-%S-%f"
-CAPTURE_INTERVAL = 0.5
+TIME_FORMAT_LOG = "%Y-%m-%d %H-%M-%S-%f"
+CAPTURE_INTERVAL = 0.5  # 2 Hz
 
 
 class DriveRecorder:
     def __init__(self, show_live_capture=False):
         self.show_live_capture = show_live_capture
 
+        print("⌚🚗 Drive Recorder wird initialisiert...")
         self.camera_system = Camera(
             timestamp_format=TIME_FORMAT_LOG, resolution=(1920, 1080)
         )
@@ -47,16 +49,17 @@ class DriveRecorder:
 
                     # Get data
                     frame = self.camera_system.capture_image()
-                    timestamp_log = time.strftime(TIME_FORMAT_LOG)
+                    timestamp_log = datetime.now().strftime(TIME_FORMAT_LOG)[:-5]
                     if frame is None:
                         # Frequency control
                         time_for_photo = time.time() - start_time
                         time.sleep(max(0, capture_interval - (time_for_photo)))
                         continue  # Skip this iteration if no frame was captured
-
                     telemetry_data = self.telemetry_logger.read_data(
                         with_timestamp=False, with_logs=True
                     )
+
+                    # Write data to CSV file / image
                     writer.writerow([timestamp_log] + telemetry_data)
 
                     image_filename = os.path.join(
@@ -85,7 +88,7 @@ class DriveRecorder:
 
 
 def main():
-    drive_recorder = DriveRecorder(show_live_capture=True)
+    drive_recorder = DriveRecorder()
     input("Enter drücken, um die Aufzeichnung zu starten...")
     drive_recorder.start_recording(capture_interval=CAPTURE_INTERVAL)  # 2 Hz
     drive_recorder.stop_recording()
