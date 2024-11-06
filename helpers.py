@@ -1,18 +1,20 @@
 import numpy as np
 
 
-def normalize(response, input_range, output_range):
+def numeric_or_none(response):
+    """Unwraps the value from the OBD response or returns None if the response is None."""
     value = (
-        np.interp(response.value.magnitude, input_range, output_range)
+        response.value.magnitude
         if response is not None and response.value is not None
         else None
     )
     return round2(value)
 
 
-def numeric_or_none(response):
+def normalize(response, input_range, output_range):
+    """Unwraps the value from the OBD response and maps it to the output range."""
     value = (
-        response.value.magnitude
+        np.interp(response.value.magnitude, input_range, output_range)
         if response is not None and response.value is not None
         else None
     )
