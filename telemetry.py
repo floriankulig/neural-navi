@@ -3,7 +3,7 @@ import serial.tools.list_ports
 from custom_commands import BRAKE_SIGNAL
 import time
 from helpers import normalize, numeric_or_none
-
+from datetime import datetime
 
 CUSTOM_COMMANDS = [BRAKE_SIGNAL]
 
@@ -24,11 +24,11 @@ class TelemetryLogger:
         self.commands = COMMANDS_TO_MONITOR
         self.connect_to_ecu()
 
-    def __watch_commands(connection):
+    def __watch_commands(self, connection):
         for command in COMMANDS_TO_MONITOR:
             connection.watch(command)
 
-    def __support_custom_commands(connection):
+    def __support_custom_commands(self, connection):
         for command in CUSTOM_COMMANDS:
             connection.supported_commands.add(command)
 
@@ -64,14 +64,14 @@ class TelemetryLogger:
             print("❌ Verbindung fehlgeschlagen. ELM327-Verbindung überprüfen.")
             return
         print(f"✅ Verbunden mit {self.__selected_port_device}.")
-        self.__watch_commands(self.connection)
         self.__support_custom_commands(self.connection)
+        self.__watch_commands(self.connection)
 
     def disconnect_from_ecu(self):
         if self.connection:
             self.connection.close()
             self.connection = None
-            print("⛓️‍💥 Verbindung zur ECU getrennt.")
+            print("✅⛓️‍💥 Verbindung zur ECU getrennt.")
 
     def start_logging(self):
         if not self.connection:
@@ -89,7 +89,7 @@ class TelemetryLogger:
         if not self.connection:
             print("❌ Keine Verbindung zur ECU vorhanden.")
             return
-        timestamp = time.strftime(self.timestamp_format)
+        timestamp = datetime.now().strftime(self.timestamp_format)[:-5]
         vehicle_speed = self.connection.query(obd.commands.SPEED)
         rpm = self.connection.query(obd.commands.RPM)
         accelerator_pos = normalize(
