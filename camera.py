@@ -73,7 +73,7 @@ class Camera:
         cv2.imwrite(filename, frame)
         print(f"✅📷💾 Gespeichert: {filename}")
 
-    def preview_image(frame):
+    def preview_image(self, frame):
         """Displays an image in an OpenCV window."""
         cv2.imshow("Live Capture", frame)
 
