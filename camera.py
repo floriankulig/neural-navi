@@ -14,7 +14,7 @@ class Camera:
         self.timestamp_format = timestamp_format
         # Detect if the system is a Raspberry Pi
         self.is_raspberry_pi = (
-            platform.system() == "Linux" and "arm" in platform.machine()
+            platform.system() == "Linux" and "aarch64" in platform.machine()
         )
 
         # Initialize the camera based on the system
@@ -31,7 +31,7 @@ class Camera:
 
             # Konfiguriere die PiCamera2 mit benutzerdefinierten Einstellungen
             config = self.camera.create_still_configuration()
-            config["resolution"] = resolution  # Defaults to (1920, 1080)
+            # config["resolution"] = resolution  # Defaults to (1920, 1080)
             config["controls"] = {
                 "ExposureTime": 20000,  # Belichtungszeit in Mikrosekunden
                 "AnalogueGain": 1.5,  # ISO-Verstärkung
@@ -88,7 +88,7 @@ class Camera:
 
 # Beispiel zur Verwendung der Klasse
 if __name__ == "__main__":
-    camera_system = Camera()
+    camera_system = Camera("Y-m-d_H-M-S")
     image = camera_system.capture_image()
     if image is not None:
         camera_system.save_image(image, "captured_image.jpg")

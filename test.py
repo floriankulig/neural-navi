@@ -1,5 +1,6 @@
 import obd
 import time
+import serial.tools.list_ports
 from custom_commands import BRAKE_SIGNAL
 
 
@@ -13,8 +14,12 @@ def raw_string(messages):
 
 
 def main():
+    ports = list(serial.tools.list_ports.comports())
+    for port in ports:
+        print(f"{port}: {port.device}")
     print("Verbinde mit ELM327...")
-    connection = obd.OBD("COM6", fast=False)
+    # connection = obd.OBD("/dev/ttyACM0", fast=False)
+    connection = obd.OBD("/dev/rfcomm0", fast=False)
 
     if not connection.is_connected():
         print("Verbindung fehlgeschlagen. Bitte überprüfen Sie Ihre ELM327-Verbindung.")
