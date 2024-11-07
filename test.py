@@ -18,8 +18,8 @@ def main():
     for port in ports:
         print(f"{port}: {port.device}")
     print("Verbinde mit ELM327...")
-    # connection = obd.OBD("/dev/ttyACM0", fast=False)
-    connection = obd.OBD("/dev/rfcomm0", fast=False)
+    # connection = obd.OBD("/dev/ttyACM0", fast=False) # Linux USB OBD2 connection
+    connection = obd.OBD("/dev/rfcomm0", fast=False)  # Linux Bluetooth OBD2 connection
 
     if not connection.is_connected():
         print("Verbindung fehlgeschlagen. Bitte überprüfen Sie Ihre ELM327-Verbindung.")
