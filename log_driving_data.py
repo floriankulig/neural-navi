@@ -22,7 +22,6 @@ COMMANDS_TO_MONITOR.extend(CUSTOM_COMMANDS)
 def find_com_ports():
     all_ports = list(serial.tools.list_ports.comports())
     return all_ports
-    return [port for port in all_ports if "Serial" in port.description]
 
 
 def watch_commands(connection):
