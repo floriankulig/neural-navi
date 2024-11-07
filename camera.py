@@ -8,10 +8,8 @@ import os
 class Camera:
     def __init__(
         self,
-        timestamp_format,
         resolution=(1920, 1080),
     ):
-        self.timestamp_format = timestamp_format
         # Detect if the system is a Raspberry Pi
         self.is_raspberry_pi = (
             platform.system() == "Linux" and "aarch64" in platform.machine()
@@ -47,6 +45,7 @@ class Camera:
 
         else:
             # Standard-Webcam-Configuration for MacOS and Windows
+            # Doesn't need configuration as it's only for testing purposes
             self.camera = cv2.VideoCapture(0)
             print("📷 Webcam konfiguriert.")
             if not self.camera.isOpened():
@@ -88,7 +87,7 @@ class Camera:
 
 # Beispiel zur Verwendung der Klasse
 if __name__ == "__main__":
-    camera_system = Camera("Y-m-d_H-M-S")
+    camera_system = Camera()
     image = camera_system.capture_image()
     if image is not None:
         camera_system.save_image(image, "captured_image.jpg")

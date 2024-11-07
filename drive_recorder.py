@@ -17,9 +17,7 @@ class DriveRecorder:
         self.show_live_capture = show_live_capture
 
         print("⌚🚗 Drive Recorder wird initialisiert...")
-        self.camera_system = Camera(
-            timestamp_format=TIME_FORMAT_LOG, resolution=(1920, 1080)
-        )
+        self.camera_system = Camera(resolution=(1920, 1080))
         self.telemetry_logger = TelemetryLogger(timestamp_format=TIME_FORMAT_LOG)
         self.__create_output_folder()
 
