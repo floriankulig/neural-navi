@@ -47,7 +47,7 @@ class DriveRecorder:
                 while True:
                     start_time = time.time()
 
-                    # Get data
+                    # CAMERA: Get data
                     frame = self.camera_system.capture_image()
                     timestamp_log = datetime.now().strftime(TIME_FORMAT_LOG)[:-5]
                     if frame is None:
@@ -55,9 +55,16 @@ class DriveRecorder:
                         time_for_photo = time.time() - start_time
                         time.sleep(max(0, capture_interval - (time_for_photo)))
                         continue  # Skip this iteration if no frame was captured
+
+                    # TELEMETRY: Get data
                     telemetry_data = self.telemetry_logger.read_data(
                         with_timestamp=False, with_logs=True
                     )
+                    if not self.__check_obd_completeness(telemetry_data):
+                        # Frequency control
+                        time_for_photo_and_obd = time.time() - start_time
+                        time.sleep(max(0, capture_interval - (time_for_photo_and_obd)))
+                        continue  # Skip this iteration if no obd data is incomplete
 
                     # Write data to CSV file / image
                     writer.writerow([timestamp_log] + telemetry_data)
@@ -78,6 +85,10 @@ class DriveRecorder:
         self.camera_system.release_camera()
         self.telemetry_logger.stop_logging()
         self.telemetry_logger.disconnect_from_ecu()
+
+    def __check_obd_completeness(self, obd_values: list) -> bool:
+        """Checks if all OBD queries delivered a response."""
+        return all(value is not None for value in obd_values)
 
 
 def main():
