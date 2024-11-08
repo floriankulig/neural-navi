@@ -2,7 +2,7 @@ import platform
 import time
 import cv2
 import numpy as np
-import os
+from libcamera import controls
 
 
 class Camera:
@@ -30,14 +30,16 @@ class Camera:
             self.camera = Picamera2()
 
             # Konfiguriere die PiCamera2 mit benutzerdefinierten Einstellungen
-            config = self.camera.create_still_configuration(main={"size": resolution})
+            config = self.camera.create_video_configuration(main={"size": resolution})
+            config["controls"] = {
+                "AfMode": controls.AfModeEnum.Continuous,
+                "AfSpeed": controls.AfSpeedEnum.Fast,
+                "NoiseReductionMode": controls.draft.NoiseReductionModeEnum.HighQuality,
+                "Saturation": 1.1,
+            }
             self.camera.configure(config)
             print("📷 PiCamera2 konfiguriert.")
 
-            if self.show_live_capture:
-                from picamera2 import Preview
-
-                self.camera.start_preview(Preview.QTGL)
             self.camera.start()
 
         else:
@@ -85,10 +87,20 @@ class Camera:
 # Beispiel zur Verwendung der Klasse
 if __name__ == "__main__":
     camera_system = Camera(show_live_capture=True)
-
+    start_time = time.time()
     try:
         while True:
             image = camera_system.capture_image()
+            if image is not None:
+                camera_system.preview_image(image)
+                camera_system.save_image(image, "test.jpg")
+
+            if cv2.waitKey(1) & 0xFF == ord("q"):
+                break
             time.sleep(0.5)
+            current_time = time.time()
+            elapsed_time = (current_time - start_time) * 1000  # Convert to milliseconds
+            print(f"Time since last image: {elapsed_time:.2f} ms")
+            start_time = current_time
     except KeyboardInterrupt:
         camera_system.release_camera()
