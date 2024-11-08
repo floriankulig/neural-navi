@@ -2,7 +2,6 @@ import platform
 import time
 import cv2
 import numpy as np
-from libcamera import controls
 
 
 class Camera:
@@ -26,6 +25,7 @@ class Camera:
         if self.is_raspberry_pi:
             # Raspberry Pi spezifische Konfiguration mit PiCamera2
             from picamera2 import Picamera2
+            from libcamera import controls
 
             self.camera = Picamera2()
 
