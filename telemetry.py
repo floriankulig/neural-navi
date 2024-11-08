@@ -1,6 +1,6 @@
 import obd
 import serial.tools.list_ports
-from custom_commands import BRAKE_SIGNAL
+from custom_commands import BRAKE_SIGNAL, ACCERLERATOR_POS_MIN, ACCERLERATOR_POS_MAX
 import time
 from helpers import normalize, numeric_or_none
 from datetime import datetime
@@ -11,7 +11,9 @@ COMMANDS_TO_MONITOR = [
     obd.commands.SPEED,
     obd.commands.RPM,
     obd.commands.ACCELERATOR_POS_D,
+    obd.commands.ACCELERATOR_POS_E,
     obd.commands.ENGINE_LOAD,
+    obd.commands.MAF,
 ]
 COMMANDS_TO_MONITOR.extend(CUSTOM_COMMANDS)
 
@@ -92,28 +94,36 @@ class TelemetryLogger:
         timestamp = datetime.now().strftime(self.timestamp_format)[:-5]
         vehicle_speed = self.connection.query(obd.commands.SPEED)
         rpm = self.connection.query(obd.commands.RPM)
-        accelerator_pos = normalize(
+        accelerator_pos1 = normalize(
             self.connection.query(obd.commands.ACCELERATOR_POS_D),
-            [14.12, 82],
+            [ACCERLERATOR_POS_MIN, ACCERLERATOR_POS_MAX],
+            [0, 100],
+        )
+        accelerator_pos2 = normalize(
+            self.connection.query(obd.commands.ACCELERATOR_POS_E),
+            [ACCERLERATOR_POS_MIN, ACCERLERATOR_POS_MAX],
             [0, 100],
         )
         engine_load = self.connection.query(obd.commands.ENGINE_LOAD)
+        airflow_intake_mass = self.connection.query(obd.commands.MAF)
         brake_signal = self.connection.query(BRAKE_SIGNAL)
         brake_signal_value = bool(brake_signal.value)
 
         values = [
-            timestamp if with_timestamp else None,
             numeric_or_none(vehicle_speed),
             numeric_or_none(rpm),
-            accelerator_pos,
+            accelerator_pos1,
+            accelerator_pos2,
             numeric_or_none(engine_load),
+            numeric_or_none(airflow_intake_mass),
             brake_signal_value,
         ]
-        if not with_timestamp:
-            values.pop(0)
+        if with_timestamp:
+            values.insert(0, timestamp)
+            
         if with_logs:
             print(
-                f"{timestamp} | {numeric_or_none(vehicle_speed)} KM/H | {numeric_or_none(rpm)} RPM | {accelerator_pos} % | {numeric_or_none(engine_load)} % | {brake_signal_value}"
+                f"{timestamp[:-2].replace("-", ":")}: {numeric_or_none(vehicle_speed)} KM/H | {numeric_or_none(rpm)} RPM | {accelerator_pos1} % | {numeric_or_none(engine_load)} % | {brake_signal_value}"
             )
         return values
 

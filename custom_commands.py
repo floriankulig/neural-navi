@@ -16,3 +16,6 @@ BRAKE_SIGNAL = OBDCommand(
     0,
     decode_brake_signal,
 )
+
+ACCERLERATOR_POS_MIN = 14.12
+ACCERLERATOR_POS_MAX = 81.56
