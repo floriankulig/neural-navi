@@ -92,39 +92,28 @@ class TelemetryLogger:
             print("❌ Keine Verbindung zur ECU vorhanden.")
             return
         timestamp = datetime.now().strftime(self.timestamp_format)[:-5]
-        vehicle_speed = self.connection.query(obd.commands.SPEED)
-        rpm = self.connection.query(obd.commands.RPM)
-        accelerator_pos1 = normalize(
-            self.connection.query(obd.commands.ACCELERATOR_POS_D),
-            [ACCERLERATOR_POS_MIN, ACCERLERATOR_POS_MAX],
-            [0, 100],
-        )
-        accelerator_pos2 = normalize(
-            self.connection.query(obd.commands.ACCELERATOR_POS_E),
-            [ACCERLERATOR_POS_MIN, ACCERLERATOR_POS_MAX],
-            [0, 100],
-        )
-        engine_load = self.connection.query(obd.commands.ENGINE_LOAD)
-        airflow_intake_mass = self.connection.query(obd.commands.MAF)
-        brake_signal = self.connection.query(BRAKE_SIGNAL)
-        brake_signal_value = bool(brake_signal.value)
-
+        
+        # Batch query commands
+        responses = [self.connection.query(cmd) for cmd in self.commands]
+        
+        # Process responses in one go
         values = [
-            numeric_or_none(vehicle_speed),
-            numeric_or_none(rpm),
-            accelerator_pos1,
-            accelerator_pos2,
-            numeric_or_none(engine_load),
-            numeric_or_none(airflow_intake_mass),
-            brake_signal_value,
+            numeric_or_none(resp) if i < 2 else
+            normalize(resp, [ACCERLERATOR_POS_MIN, ACCERLERATOR_POS_MAX], [0, 100]) if i in [2,3] else
+            numeric_or_none(resp) if i < 6 else
+            bool(resp.value)
+            for i, resp in enumerate(responses)
         ]
-        if with_timestamp:
-            values.insert(0, timestamp)
+
             
         if with_logs:
             print(
-                f"{timestamp[:-2].replace("-", ":")}: {numeric_or_none(vehicle_speed)} KM/H | {numeric_or_none(rpm)} RPM | {accelerator_pos1} % | {numeric_or_none(engine_load)} % | {brake_signal_value}"
+                f"{timestamp[:-2].replace("-", ":")}: {values[0]} KM/H | {values[1]} RPM | {values[2]} % | {values[4]} % | {values[-1]}"
             )
+
+        if with_timestamp:
+            values.insert(0, timestamp)
+
         return values
 
 
