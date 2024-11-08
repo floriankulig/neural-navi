@@ -84,9 +84,11 @@ class Camera:
 
 # Beispiel zur Verwendung der Klasse
 if __name__ == "__main__":
-    camera_system = Camera()
+    camera_system = Camera(show_live_capture=True)
 
-    image = camera_system.capture_image()
-    if image is not None:
-        camera_system.save_image(image, "captured_image.jpg")
-    camera_system.release_camera()
+    try:
+        while True:
+            image = camera_system.capture_image()
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        camera_system.release_camera()
