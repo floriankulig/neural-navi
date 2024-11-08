@@ -32,9 +32,8 @@ class Camera:
             # Konfiguriere die PiCamera2 mit benutzerdefinierten Einstellungen
             config = self.camera.create_video_configuration(main={"size": resolution})
             config["controls"] = {
-                "AfMode": controls.AfModeEnum.Continuous,
-                "AfSpeed": controls.AfSpeedEnum.Fast,
-                "NoiseReductionMode": controls.draft.NoiseReductionModeEnum.HighQuality,
+                "AfMode": controls.AfModeEnum.Manual,
+                "NoiseReductionMode": controls.draft.NoiseReductionModeEnum.Fast,
                 "Saturation": 1.1,
             }
             self.camera.configure(config)
