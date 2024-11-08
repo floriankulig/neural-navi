@@ -9,6 +9,7 @@ class Camera:
     def __init__(
         self,
         resolution=(1920, 1080),
+        show_live_capture=False,
     ):
         # Detect if the system is a Raspberry Pi
         self.is_raspberry_pi = (
@@ -17,6 +18,7 @@ class Camera:
 
         # Initialize the camera based on the system
         self.camera = None
+        self.show_live_capture = show_live_capture
         self.configure_camera(resolution=resolution)
 
     def configure_camera(self, resolution=(1920, 1080)):
@@ -28,19 +30,14 @@ class Camera:
             self.camera = Picamera2()
 
             # Konfiguriere die PiCamera2 mit benutzerdefinierten Einstellungen
-            config = self.camera.create_still_configuration()
-            # config["resolution"] = resolution  # Defaults to (1920, 1080)
-            config["controls"] = {
-                "ExposureTime": 20000,  # Belichtungszeit in Mikrosekunden
-                "AnalogueGain": 1.5,  # ISO-Verstärkung
-                "AeEnable": False,  # Automatische Belichtung deaktivieren
-                "AwbEnable": False,  # Automatischer Weißabgleich deaktivieren
-                "Brightness": 0.5,  # Helligkeit
-                "Contrast": 1.2,  # Kontrast
-                "Saturation": 1.0,  # Sättigung
-            }
+            config = self.camera.create_still_configuration(main={"size": resolution})
             self.camera.configure(config)
             print("📷 PiCamera2 konfiguriert.")
+
+            if self.show_live_capture:
+                from picamera2 import Preview
+
+                self.camera.start_preview(Preview.QTGL)
             self.camera.start()
 
         else:
@@ -88,6 +85,7 @@ class Camera:
 # Beispiel zur Verwendung der Klasse
 if __name__ == "__main__":
     camera_system = Camera()
+
     image = camera_system.capture_image()
     if image is not None:
         camera_system.save_image(image, "captured_image.jpg")

@@ -17,7 +17,9 @@ class DriveRecorder:
         self.show_live_capture = show_live_capture
 
         print("⌚🚗 Drive Recorder wird initialisiert...")
-        self.camera_system = Camera(resolution=(1920, 1080))
+        self.camera_system = Camera(
+            resolution=(1920, 1080), show_live_capture=show_live_capture
+        )
         self.telemetry_logger = TelemetryLogger(timestamp_format=TIME_FORMAT_LOG)
         self.__create_output_folder()
 
@@ -64,13 +66,6 @@ class DriveRecorder:
                         session_folder, f"{timestamp_log}.jpg"
                     )
                     self.camera_system.save_image(frame, image_filename)
-
-                    # Show live capture if enabled
-                    if self.show_live_capture:
-                        self.camera_system.preview_image(frame)
-
-                    if cv2.waitKey(1) & 0xFF == ord("q"):
-                        break
 
                     # Frequency control
                     time_for_photo = time.time() - start_time
