@@ -92,23 +92,29 @@ class TelemetryLogger:
             print("❌ Keine Verbindung zur ECU vorhanden.")
             return
         timestamp = datetime.now().strftime(self.timestamp_format)[:-5]
-        
+
         # Batch query commands
         responses = [self.connection.query(cmd) for cmd in self.commands]
-        
+
         # Process responses in one go
         values = [
-            numeric_or_none(resp) if i < 2 else
-            normalize(resp, [ACCERLERATOR_POS_MIN, ACCERLERATOR_POS_MAX], [0, 100]) if i in [2,3] else
-            numeric_or_none(resp) if i < 6 else
-            bool(resp.value)
+            (
+                numeric_or_none(resp)
+                if i < 2
+                else (
+                    normalize(
+                        resp, [ACCERLERATOR_POS_MIN, ACCERLERATOR_POS_MAX], [0, 100]
+                    )
+                    if i in [2, 3]
+                    else numeric_or_none(resp) if i < 6 else bool(resp.value)
+                )
+            )
             for i, resp in enumerate(responses)
         ]
 
-            
         if with_logs:
             print(
-                f"{timestamp[:-2].replace("-", ":")}: {values[0]} KM/H | {values[1]} RPM | {values[2]} % | {values[4]} % | {values[-1]}"
+                f"{timestamp[:-2].replace('-', ':')}: {values[0]} KM/H | {values[1]} RPM | {values[2]} % | {values[4]} % | {values[-1]}"
             )
 
         if with_timestamp:
