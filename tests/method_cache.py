@@ -2,6 +2,10 @@ import time
 import datetime
 from timeit import timeit
 
+# Dieses Modul demonstriert den Unterschied zwischen direktem und gecachtem Zugriff auf Funktionen
+# und vergleicht verschiedene Methoden, um auf Funktionen zuzugreifen.
+# Behauptung ist, dass gecachter Zugriff schneller ist als direkter Zugriff.
+
 
 def demonstrate_lookup_difference():
     """Demonstriert den Unterschied zwischen direktem und globalem Zugriff"""
@@ -22,25 +26,6 @@ def demonstrate_lookup_difference():
     time_with = timeit(with_caching, number=1)
 
     return time_without, time_with
-
-
-def explain_namespace_lookup():
-    """Erklärt wie Python Namen auflöst"""
-
-    def example_function():
-        x = 1  # Lokale Variable
-
-        def inner_function():
-            # Python sucht Namen in dieser Reihenfolge:
-            # 1. Lokaler Scope (L)
-            # 2. Umgebender Scope (E)
-            # 3. Globaler Scope (G)
-            # 4. Built-in Scope (B)
-            return x  # Findet x im umgebenden Scope
-
-        return inner_function()
-
-    return example_function()
 
 
 def benchmark_different_approaches():
