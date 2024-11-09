@@ -13,8 +13,9 @@ CAPTURE_INTERVAL = 0.5  # 2 Hz
 
 
 class DriveRecorder:
-    def __init__(self, show_live_capture=False):
+    def __init__(self, show_live_capture=False, with_logs=False):
         self.show_live_capture = show_live_capture
+        self.with_logs = with_logs
 
         print("⌚🚗 Drive Recorder wird initialisiert...")
         self.camera_system = Camera(
@@ -64,12 +65,11 @@ class DriveRecorder:
                         frame = telemetry_data = None
 
                         # Capture frame and telemetry data in parallel
-
                         frame_future = executor.submit(self.camera_system.capture_image)
                         telemetry_future = executor.submit(
                             self.telemetry_logger.read_data,
                             with_timestamp=False,
-                            with_logs=True,
+                            with_logs=self.with_logs,
                         )
 
                         frame = frame_future.result()
@@ -95,7 +95,11 @@ class DriveRecorder:
                         image_filename = os.path.join(
                             session_folder, f"{timestamp_log}.jpg"
                         )
-                        self.camera_system.save_image(frame, image_filename)
+                        self.camera_system.save_image(
+                            frame,
+                            image_filename,
+                            with_logs=self.with_logs,
+                        )
 
                         # Frequency control
                         time_elapsed = time_time() - start_time
@@ -117,7 +121,7 @@ class DriveRecorder:
 
 
 def main():
-    drive_recorder = DriveRecorder()
+    drive_recorder = DriveRecorder(with_logs=True)
     input("Enter drücken, um die Aufzeichnung zu starten...")
     drive_recorder.start_recording(capture_interval=CAPTURE_INTERVAL)  # 2 Hz
     drive_recorder.stop_recording()

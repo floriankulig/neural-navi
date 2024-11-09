@@ -65,10 +65,11 @@ class Camera:
                 return None
         return frame
 
-    def save_image(self, frame, filename: str):
+    def save_image(self, frame, filename: str, with_logs=False):
         """Saves the image in the specified folder with a timestamp in the filename."""
         cv2.imwrite(filename, frame)
-        print(f"✅📷💾 Gespeichert: {filename.split('/')[-1]}")
+        if with_logs:
+            print(f"✅📷💾 Gespeichert: {filename.split('/')[-1]}")
 
     def preview_image(self, frame):
         """Displays an image in an OpenCV window."""
