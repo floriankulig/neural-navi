@@ -120,10 +120,10 @@ class TelemetryLogger:
         ]
         if with_timestamp:
             values.insert(0, timestamp)
-            
+
         if with_logs:
             print(
-                f"{timestamp[:-2].replace("-", ":")}: {numeric_or_none(vehicle_speed)} KM/H | {numeric_or_none(rpm)} RPM | {accelerator_pos1} % | {numeric_or_none(engine_load)} % | {brake_signal_value}"
+                f"{timestamp[:-2].replace('-', ':')}: {numeric_or_none(vehicle_speed)} KM/H | {numeric_or_none(rpm)} RPM | {accelerator_pos1} % | {numeric_or_none(engine_load)} % | {brake_signal_value}"
             )
         return values
 
