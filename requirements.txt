@@ -7,7 +7,6 @@ numpy==1.26.4
 obd==0.7.2
 packaging==24.1
 pandas==2.2.3
-picamera==1.13
 pillow==11.0.0
 Pint==0.20.1
 pyparsing==3.2.0
