@@ -50,6 +50,7 @@ class DriveRecorder:
                     writer.writerow(
                         ["Time"]
                         + [command.name for command in self.telemetry_logger.commands]
+                        + self.telemetry_logger.derived_values
                     )
 
                     # Cache frequently used functions
@@ -83,7 +84,10 @@ class DriveRecorder:
                             cause = "No Frame" if frame is None else "Incomplete Data"
                             writer.writerow(
                                 [cause]
-                                + (["No Data"] * len(self.telemetry_logger.commands))
+                                + (
+                                    ["No Data"] * len(self.telemetry_logger.commands)
+                                    + len(self.telemetry_logger.derived_values)
+                                )
                             )
                             time_elapsed = time_time() - start_time
                             sleep_func(max_func(0, capture_interval - time_elapsed))

@@ -1,11 +1,17 @@
 import obd
 import serial.tools.list_ports
-from custom_commands import BRAKE_SIGNAL, ACCERLERATOR_POS_MIN, ACCERLERATOR_POS_MAX
+from custom_commands import (
+    BRAKE_SIGNAL,
+    ACCERLERATOR_POS_MIN,
+    ACCERLERATOR_POS_MAX,
+    get_gear,
+)
 import time
 from helpers import normalize, numeric_or_none
 from datetime import datetime
 
 CUSTOM_COMMANDS = [BRAKE_SIGNAL]
+DERIVED_VALUES = ["GEAR"]
 
 COMMANDS_TO_MONITOR = [
     obd.commands.SPEED,
@@ -24,6 +30,7 @@ class TelemetryLogger:
         self.connection = None
         self.timestamp_format = timestamp_format
         self.commands = COMMANDS_TO_MONITOR
+        self.derived_values = DERIVED_VALUES
         self.connect_to_ecu()
 
     def __watch_commands(self, connection):
@@ -111,10 +118,12 @@ class TelemetryLogger:
             )
             for i, resp in enumerate(responses)
         ]
+        calculated_gear = get_gear(values[0], values[1], values[2], values[4])
+        values.append(calculated_gear)
 
         if with_logs:
             print(
-                f"{timestamp[:-2].replace('-', ':')}: {values[0]} KM/H | {values[1]} RPM | {values[2]} % | {values[4]} % | {values[-1]}"
+                f"{timestamp[:-2].replace('-', ':')}: {values[0]} KM/H | {values[1]} RPM | {values[2]} % | {values[4]} % | {values[-2]}"
             )
 
         if with_timestamp:
