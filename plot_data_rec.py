@@ -49,7 +49,7 @@ df = pd.read_csv(
     parse_dates=["Time"],
     date_format=TIME_FORMAT_LOG,
 )
-# df = df[:2000]  # Nur die ersten 250 Zeilen anzeigen
+df = df[:2000]  # Nur die ersten 250 Zeilen anzeigen
 
 # Plot-Setup
 fig, ax1 = plt.subplots(figsize=(len(df) / 10, 10))  # Ein breiterer Plot
@@ -58,8 +58,8 @@ sns.set_theme(style="whitegrid")
 # Plot für die erste Y-Achse (Vehicle Speed, Accelerator Position, Engine Load)
 ax1.plot(df["Time"], df["SPEED"], label="Vehicle Speed (km/h)", color="blue")
 # Horizontale Linien zu den Werten hinzufügen
-for value in [0, 20, 40, 60, 80, 100]:
-    ax1.axhline(y=value, color="gray", linestyle="--", linewidth=0.5)
+# for value in [0, 20, 40, 60, 80, 100]:
+#     ax1.axhline(y=value, color="gray", linestyle="--", linewidth=0.5)
 ax1.plot(
     df["Time"],
     df["ACCELERATOR_POS_D"],
