@@ -5,9 +5,9 @@ kiwisolver==1.4.7
 matplotlib==3.9.2
 numpy==1.26.4
 obd==0.7.2
+opencv-python==4.10.0.84
 packaging==24.1
 pandas==2.2.3
-picamera==1.13
 pillow==11.0.0
 Pint==0.20.1
 pyparsing==3.2.0
