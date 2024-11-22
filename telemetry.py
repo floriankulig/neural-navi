@@ -134,7 +134,6 @@ class TelemetryLogger:
 
 if __name__ == "__main__":
     logger = TelemetryLogger("%Y-%m-%d_%H-%M-%S-%f")
-    logger.connect_to_ecu()
     logger.start_logging()
     try:
         while True:
