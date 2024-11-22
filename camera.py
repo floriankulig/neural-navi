@@ -35,6 +35,8 @@ class Camera:
                 "AfMode": controls.AfModeEnum.Manual,
                 "NoiseReductionMode": controls.draft.NoiseReductionModeEnum.Fast,
                 "Saturation": 1.1,
+                "ExposureTime": 33333, # 1/30 Sekunde = 30 fps
+
             }
             self.camera.configure(config)
             print("📷 PiCamera2 konfiguriert.")
