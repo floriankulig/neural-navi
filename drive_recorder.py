@@ -1,7 +1,6 @@
 from camera import Camera
 from telemetry import TelemetryLogger
 import time
-import cv2
 import os
 import csv
 from datetime import datetime
@@ -22,11 +21,14 @@ class DriveRecorder:
             resolution=(1920, 1080), show_live_capture=show_live_capture
         )
         self.telemetry_logger = TelemetryLogger(timestamp_format=TIME_FORMAT_LOG)
-        self.__create_output_folder()
+        self.session_folder = self.__create_output_folder()
 
     def __create_output_folder(self):
         """Creates the output folder for the recorded drive data."""
-        os.makedirs(OUTPUT_PATH, exist_ok=True)
+        timestamp_start = time.strftime(TIME_FORMAT_FILES)
+        session_folder = os.path.join(OUTPUT_PATH, timestamp_start)
+        os.makedirs(session_folder, exist_ok=True)
+        return session_folder
 
     def start_recording(self, capture_interval=0.5):
         from concurrent.futures import ThreadPoolExecutor
@@ -37,10 +39,7 @@ class DriveRecorder:
             timestamp_start = time.strftime(TIME_FORMAT_FILES)
             print(f"✅ Starte die Aufzeichnung um {timestamp_start}...")
 
-            # Create a subfolder for the current recording session
-            session_folder = os.path.join(OUTPUT_PATH, timestamp_start)
-            os.makedirs(session_folder, exist_ok=True)
-            telemetry_file = os.path.join(session_folder, "telemetry.csv")
+            telemetry_file = os.path.join(self.session_folder, "telemetry.csv")
 
             with ThreadPoolExecutor(max_workers=2) as executor:
 
@@ -98,7 +97,7 @@ class DriveRecorder:
                         # Write data to CSV file / image
                         writer.writerow([timestamp_log] + telemetry_data)
                         image_filename = os.path.join(
-                            session_folder, f"{timestamp_log}.jpg"
+                            self.session_folder, f"{timestamp_log}.jpg"
                         )
                         self.camera_system.save_image(
                             frame,
