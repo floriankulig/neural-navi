@@ -75,6 +75,8 @@ class DriveRecorder:
 
                         frame = frame_future.result()
                         telemetry_data = telemetry_future.result()
+                        # As soon as the data is available, mark the timestamp 
+                        timestamp_log = datetime_now().strftime(TIME_FORMAT_LOG)[:-5]
 
                         # Check for data integrity
                         if frame is None or not self.__check_obd_completeness(
@@ -85,8 +87,8 @@ class DriveRecorder:
                             writer.writerow(
                                 [cause]
                                 + (
-                                    ["No Data"] * len(self.telemetry_logger.commands)
-                                    + len(self.telemetry_logger.derived_values)
+                                    ["No Data"] * (len(self.telemetry_logger.commands)
+                                    + len(self.telemetry_logger.derived_values))
                                 )
                             )
                             time_elapsed = time_time() - start_time
@@ -94,7 +96,6 @@ class DriveRecorder:
                             continue
 
                         # Write data to CSV file / image
-                        timestamp_log = datetime_now().strftime(TIME_FORMAT_LOG)[:-5]
                         writer.writerow([timestamp_log] + telemetry_data)
                         image_filename = os.path.join(
                             session_folder, f"{timestamp_log}.jpg"
