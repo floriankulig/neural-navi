@@ -17,6 +17,7 @@ BRAKE_SIGNAL = OBDCommand(
     decode_brake_signal,
 )
 
+# Capped values as ECU doesn't deliver this value from 0 to 100
 ACCERLERATOR_POS_MIN = 14.12
 ACCERLERATOR_POS_MAX = 81.56
 
@@ -29,6 +30,13 @@ GEAR_RATIO_ERROR_VARIANCE_PROGRESSION = 0.025
 
 
 def get_gear(vehicle_speed, rpm, accelerator_pos, engine_load):
+    if (
+        vehicle_speed is None
+        or int(rpm) is 0  # catch None values and division by 0
+        or accelerator_pos is None
+        or engine_load is None
+    ):
+        return None
     gear_ratio = vehicle_speed / rpm
 
     # Standing still, assumed to be in neutral
