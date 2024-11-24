@@ -32,11 +32,14 @@ class Camera:
             # Konfiguriere die PiCamera2 mit benutzerdefinierten Einstellungen
             config = self.camera.create_video_configuration(main={"size": resolution})
             config["controls"] = {
+                "AeEnable": False,
                 "AfMode": controls.AfModeEnum.Manual,
                 "NoiseReductionMode": controls.draft.NoiseReductionModeEnum.Fast,
                 "Saturation": 1.1,
-                "ExposureTime": 33333, # 1/30 Sekunde = 30 fps
-
+                "Sharpness": 1.2,
+                "Contrast": 1.2,
+                "ExposureTime": 1000,  # 1ms
+                "FrameDurationLimits": (33333, 33333),
             }
             self.camera.configure(config)
             print("📷 PiCamera2 konfiguriert.")
