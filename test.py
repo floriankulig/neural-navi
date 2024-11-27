@@ -1,7 +1,7 @@
 import obd
 import time
 import serial.tools.list_ports
-from custom_commands import BRAKE_SIGNAL
+from features.custom_commands import BRAKE_SIGNAL
 
 
 # Funktion zum Konvertieren von OBD-Daten in einen Rohdatenstring

@@ -3,7 +3,7 @@ import time
 import csv
 import os
 import serial.tools.list_ports
-from custom_commands import BRAKE_SIGNAL
+from features.custom_commands import BRAKE_SIGNAL
 from helpers import normalize, numeric_or_none
 
 INTERVAL = 0.5
