@@ -1,7 +1,6 @@
 from camera import Camera
 from telemetry import TelemetryLogger
 import time
-import cv2
 import os
 import csv
 from datetime import datetime
@@ -13,72 +12,106 @@ CAPTURE_INTERVAL = 0.5  # 2 Hz
 
 
 class DriveRecorder:
-    def __init__(self, show_live_capture=False):
+    def __init__(self, show_live_capture=False, with_logs=False):
         self.show_live_capture = show_live_capture
+        self.with_logs = with_logs
 
         print("⌚🚗 Drive Recorder wird initialisiert...")
         self.camera_system = Camera(
             resolution=(1920, 1080), show_live_capture=show_live_capture
         )
         self.telemetry_logger = TelemetryLogger(timestamp_format=TIME_FORMAT_LOG)
-        self.__create_output_folder()
+        self.session_folder = self.__create_output_folder()
 
     def __create_output_folder(self):
         """Creates the output folder for the recorded drive data."""
-        os.makedirs(OUTPUT_PATH, exist_ok=True)
+        timestamp_start = time.strftime(TIME_FORMAT_FILES)
+        session_folder = os.path.join(OUTPUT_PATH, timestamp_start)
+        os.makedirs(session_folder, exist_ok=True)
+        return session_folder
 
     def start_recording(self, capture_interval=0.5):
-        """Startet die Aufzeichnung von Bildern und Telemetrie im angegebenen Intervall (in Sekunden)."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        """Starts recording images and telemetry at the specified interval (in seconds)."""
         try:
             self.telemetry_logger.start_logging()
             timestamp_start = time.strftime(TIME_FORMAT_FILES)
             print(f"✅ Starte die Aufzeichnung um {timestamp_start}...")
-            # Create a subfolder for the current recording session
-            session_folder = os.path.join(OUTPUT_PATH, timestamp_start)
-            os.makedirs(session_folder, exist_ok=True)
-            telemetry_file = os.path.join(session_folder, "telemetry.csv")
-            with open(telemetry_file, "x", newline="") as csvfile:
-                writer = csv.writer(csvfile)
-                # Write the header row with the command names
-                writer.writerow(
-                    ["Time"]
-                    + [command.name for command in self.telemetry_logger.commands]
-                )
-                while True:
-                    start_time = time.time()
 
-                    # CAMERA: Get data
-                    frame = self.camera_system.capture_image()
-                    timestamp_log = datetime.now().strftime(TIME_FORMAT_LOG)[:-5]
-                    if frame is None:
-                        # Frequency control
-                        time_for_photo = time.time() - start_time
-                        time.sleep(max(0, capture_interval - (time_for_photo)))
-                        continue  # Skip this iteration if no frame was captured
+            telemetry_file = os.path.join(self.session_folder, "telemetry.csv")
 
-                    # TELEMETRY: Get data
-                    telemetry_data = self.telemetry_logger.read_data(
-                        with_timestamp=False, with_logs=True
+            with ThreadPoolExecutor(max_workers=2) as executor:
+
+                with open(telemetry_file, "x", newline="") as csvfile:
+                    writer = csv.writer(csvfile)
+                    # Write the header row with the command names
+                    writer.writerow(
+                        ["Time"]
+                        + [command.name for command in self.telemetry_logger.commands]
+                        + self.telemetry_logger.derived_values
                     )
-                    if not self.__check_obd_completeness(telemetry_data):
+
+                    # Cache frequently used functions
+                    time_time = time.time
+                    datetime_now = datetime.now
+                    max_func = max
+                    sleep_func = time.sleep
+
+                    while True:
+                        start_time = time_time()
+
+                        # Prepare for parallel data capture
+                        frame = telemetry_data = None
+
+                        # Capture frame and telemetry data in parallel
+                        frame_future = executor.submit(self.camera_system.capture_image)
+                        telemetry_future = executor.submit(
+                            self.telemetry_logger.read_data,
+                            with_timestamp=False,
+                            with_logs=self.with_logs,
+                        )
+
+                        frame = frame_future.result()
+                        telemetry_data = telemetry_future.result()
+                        # As soon as the data is available, mark the timestamp 
+                        timestamp_log = datetime_now().strftime(TIME_FORMAT_LOG)[:-5]
+
+                        # Check for data integrity
+                        if frame is None or not self.__check_obd_completeness(
+                            telemetry_data
+                        ):
+                            print("⚠️ Fehler bei der Datenerfassung. Überspringe...")
+                            cause = "No Frame" if frame is None else "Incomplete Data"
+                            writer.writerow(
+                                [cause]
+                                + (
+                                    ["No Data"] * (len(self.telemetry_logger.commands)
+                                    + len(self.telemetry_logger.derived_values))
+                                )
+                            )
+                            time_elapsed = time_time() - start_time
+                            sleep_func(max_func(0, capture_interval - time_elapsed))
+                            continue
+
+                        # Write data to CSV file / image
+                        writer.writerow([timestamp_log] + telemetry_data)
+                        image_filename = os.path.join(
+                            self.session_folder, f"{timestamp_log}.jpg"
+                        )
+                        self.camera_system.save_image(
+                            frame,
+                            image_filename,
+                            with_logs=self.with_logs,
+                        )
+
                         # Frequency control
-                        time_for_photo_and_obd = time.time() - start_time
-                        time.sleep(max(0, capture_interval - (time_for_photo_and_obd)))
-                        continue  # Skip this iteration if no obd data is incomplete
-
-                    # Write data to CSV file / image
-                    writer.writerow([timestamp_log] + telemetry_data)
-
-                    image_filename = os.path.join(
-                        session_folder, f"{timestamp_log}.jpg"
-                    )
-                    self.camera_system.save_image(frame, image_filename)
-
-                    # Frequency control
-                    time_for_photo = time.time() - start_time
-                    time.sleep(max(0, capture_interval - (time_for_photo)))
+                        time_elapsed = time_time() - start_time
+                        sleep_func(max_func(0, capture_interval - (time_elapsed)))
         except KeyboardInterrupt:
             print("Recording interrupted by user.")
+        except Exception as e:
+            print(f"An error occurred during recording: {e}")
 
     def stop_recording(self):
         """Stops the recording."""
@@ -92,7 +125,7 @@ class DriveRecorder:
 
 
 def main():
-    drive_recorder = DriveRecorder()
+    drive_recorder = DriveRecorder(with_logs=True)
     input("Enter drücken, um die Aufzeichnung zu starten...")
     drive_recorder.start_recording(capture_interval=CAPTURE_INTERVAL)  # 2 Hz
     drive_recorder.stop_recording()

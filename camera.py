@@ -32,9 +32,14 @@ class Camera:
             # Konfiguriere die PiCamera2 mit benutzerdefinierten Einstellungen
             config = self.camera.create_video_configuration(main={"size": resolution})
             config["controls"] = {
+                "AeEnable": False,
                 "AfMode": controls.AfModeEnum.Manual,
                 "NoiseReductionMode": controls.draft.NoiseReductionModeEnum.Fast,
                 "Saturation": 1.1,
+                "Sharpness": 1.2,
+                "Contrast": 1.2,
+                "ExposureTime": 1000,  # 1ms
+                "FrameDurationLimits": (33333, 33333),
             }
             self.camera.configure(config)
             print("📷 PiCamera2 konfiguriert.")
@@ -65,10 +70,11 @@ class Camera:
                 return None
         return frame
 
-    def save_image(self, frame, filename: str):
+    def save_image(self, frame, filename: str, with_logs=False):
         """Saves the image in the specified folder with a timestamp in the filename."""
         cv2.imwrite(filename, frame)
-        print(f"✅📷💾 Gespeichert: {filename.split('/')[-1]}")
+        if with_logs:
+            print(f"✅📷💾 Gespeichert: {filename.split('/')[-1]}")
 
     def preview_image(self, frame):
         """Displays an image in an OpenCV window."""
