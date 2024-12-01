@@ -6,7 +6,7 @@ from features.custom_commands import (
     ACCERLERATOR_POS_MAX,
 )
 from features.brake_force import BrakeForceCalculator
-from features.gear import get_gear
+from features.gear import GearCalculator
 import time
 from helpers import normalize, numeric_or_none
 from datetime import datetime
@@ -34,6 +34,7 @@ class TelemetryLogger:
         self.derived_values = DERIVED_VALUES
         self.connect_to_ecu()
         self.brake_force = BrakeForceCalculator(connection=self.connection)
+        self.current_gear = GearCalculator()  # New instance
 
     def __watch_commands(self, connection):
         for command in COMMANDS_TO_MONITOR:
@@ -118,7 +119,13 @@ class TelemetryLogger:
             )
             for i, resp in enumerate(responses)
         ]
-        calculated_gear = get_gear(values[0], values[1], values[2], values[4])
+        # Use gear calculator instead of direct function call
+        calculated_gear = self.current_gear(
+            values[0],  # vehicle_speed
+            values[1],  # rpm
+            values[2],  # accelerator_pos
+            values[4],  # engine_load
+        )
         (brake_force, pre_braking, while_braking) = self.brake_force()
         derived_values = [calculated_gear, brake_force, pre_braking, while_braking]
         values.extend(derived_values)
