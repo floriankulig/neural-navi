@@ -3,7 +3,11 @@ from collections import deque
 import numpy as np
 import time
 from helpers import numeric_or_none, normalize
-from custom_commands import BRAKE_SIGNAL, ACCERLERATOR_POS_MIN, ACCERLERATOR_POS_MAX
+from features.custom_commands import (
+    BRAKE_SIGNAL,
+    ACCERLERATOR_POS_MIN,
+    ACCERLERATOR_POS_MAX,
+)
 
 
 class BrakeForceCalculator:
@@ -106,7 +110,7 @@ class BrakeForceCalculator:
 
     def __keep_track_of_accelerator_position(self, new_accelerator_pos: OBDResponse):
         new_accelerator_pos_value = normalize(
-            new_accelerator_pos.value,
+            new_accelerator_pos,
             [ACCERLERATOR_POS_MIN, ACCERLERATOR_POS_MAX],
             [0, 100],
         )
@@ -134,7 +138,7 @@ class BrakeForceCalculator:
         self.is_braking = new_brake_signal_value
 
     def __keep_track_of_vehicle_speed(self, new_speed: OBDResponse):
-        new_speed_value = numeric_or_none(new_speed.value)
+        new_speed_value = numeric_or_none(new_speed)
         if new_speed_value is None:
             return
 
