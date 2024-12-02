@@ -73,7 +73,7 @@ class BrakeForceCalculator:
             else:
                 # Gradient at the last point in time before braking
                 baseline_deceleration = self.__calculate_gradient(
-                    pre_braking_speeds, pre_braking_times, mode="double"
+                    pre_braking_speeds, pre_braking_times
                 )
 
             braking_speeds = [speed for _, speed in self.last_braking_speeds]
@@ -118,10 +118,14 @@ class BrakeForceCalculator:
             return
         new_is_accelerating = new_accelerator_pos_value > 0
 
-        # Reset the last braking speeds if the accelerator position has just gone up
+        # Reset the last braking speeds if the driver is not more accelerating
         # Don't reset if the driver is braking, as driver might be heel-and-toe shifting
         # and braking is not yet finished
         if self.is_accelerating and not new_is_accelerating and not self.is_braking:
+            self.last_pre_braking_speeds.clear()
+
+        # Reset the last braking speeds if the driver is going back to accelerating
+        if not self.is_accelerating and new_is_accelerating and not self.is_braking:
             self.last_pre_braking_speeds.clear()
 
         self.is_accelerating = new_is_accelerating
