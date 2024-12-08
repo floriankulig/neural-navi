@@ -18,9 +18,9 @@ COMMANDS_TO_MONITOR = [
     obd.commands.SPEED,
     obd.commands.RPM,
     obd.commands.ACCELERATOR_POS_D,
-    obd.commands.ACCELERATOR_POS_E,
+    # obd.commands.ACCELERATOR_POS_E,
     obd.commands.ENGINE_LOAD,
-    obd.commands.MAF,
+    # obd.commands.MAF,
 ]
 COMMANDS_TO_MONITOR.extend(CUSTOM_COMMANDS)
 
@@ -71,7 +71,7 @@ class TelemetryLogger:
             print("❌ Kein Port zum Verbinden ausgewählt.")
             self.__prompt_choose_port()
 
-        self.connection = obd.Async(self.__selected_port_device)
+        self.connection = obd.Async(self.__selected_port_device, delay_cmds=0.05)
         if not self.connection.is_connected():
             print("❌ Verbindung fehlgeschlagen. ELM327-Verbindung überprüfen.")
             return
