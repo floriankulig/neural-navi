@@ -113,8 +113,6 @@ class DriveRecorder:
                         sleep_func(max_func(0, capture_interval - (time_elapsed)))
         except KeyboardInterrupt:
             print("Recording interrupted by user.")
-        except Exception as e:
-            print(f"An error occurred during recording: {e}")
 
     def stop_recording(self):
         """Stops the recording."""
