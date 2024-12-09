@@ -99,9 +99,11 @@ class BrakeForceCalculator:
             deceleration_delta = current_deceleration - baseline_deceleration
 
             # Convert to brake force percentage
-            brake_force_percentage = min(
-                1, max(0, (-deceleration_delta / self.MAX_DECELERATION))
-            )
+            # brake_force_percentage = min(
+            #     1, max(0, (-deceleration_delta / self.MAX_DECELERATION))
+            # )
+            # Leave for normalization later
+            brake_force_percentage = -deceleration_delta / self.MAX_DECELERATION
 
             return brake_force_percentage
 
