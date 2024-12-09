@@ -110,10 +110,10 @@ class TelemetryLogger:
         values = [
             (
                 normalize(resp, [ACCERLERATOR_POS_MIN, ACCERLERATOR_POS_MAX], [0, 100])
-                if i in [2, 3]  # Accelerator position(s)
+                if i in [2]  # Accelerator position(s)
                 else (
                     bool(resp.value)
-                    if i == 6  # Brake signal
+                    if i == 4  # Brake signal
                     else numeric_or_none(resp)  # Speed, RPM, Engine Load, MAF
                 )
             )
@@ -124,7 +124,7 @@ class TelemetryLogger:
             values[0],  # vehicle_speed
             values[1],  # rpm
             values[2],  # accelerator_pos
-            values[4],  # engine_load
+            values[3],  # engine_load
         )
         (brake_force, pre_braking, while_braking) = self.brake_force()
         derived_values = [calculated_gear, brake_force, pre_braking, while_braking]
@@ -132,7 +132,7 @@ class TelemetryLogger:
 
         if with_logs:
             print(
-                f"{timestamp[:-2].replace('-', ':')}: {values[0]} KM/H | {values[1]} RPM | {values[2]} % | {values[4]} % | {values[6]} | {values[-4]} | {values[-3] * 100:.2f} %"
+                f"{timestamp[:-2].replace('-', ':')}: {values[0]} KM/H | {values[1]} RPM | {values[2]} % | {values[3]} % | {values[4]} | {values[-4]} | {values[-3] * 100:.2f} %"
             )
 
         if with_timestamp:
