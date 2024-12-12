@@ -71,7 +71,7 @@ class TelemetryLogger:
             print("❌ Kein Port zum Verbinden ausgewählt.")
             self.__prompt_choose_port()
 
-        self.connection = obd.Async(self.__selected_port_device, delay_cmds=0.05)
+        self.connection = obd.Async(self.__selected_port_device, delay_cmds=0)
         if not self.connection.is_connected():
             print("❌ Verbindung fehlgeschlagen. ELM327-Verbindung überprüfen.")
             return
@@ -114,7 +114,7 @@ class TelemetryLogger:
                 else (
                     bool(resp.value)
                     if i == 4  # Brake signal
-                    else numeric_or_none(resp)  # Speed, RPM, Engine Load, MAF
+                    else numeric_or_none(resp)  # Speed, RPM, Engine Load
                 )
             )
             for i, resp in enumerate(responses)
