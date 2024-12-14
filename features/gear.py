@@ -1,5 +1,4 @@
 class GearCalculator:
-    # Constants moved from gear.py
     IDLE_RPM = 920
     GEAR_RATIOS_PLOTTED = [9.5, 16.5, 27.5, 40.5, 53.5]
     GEAR_RATIOS = [ratio / 1000 for ratio in GEAR_RATIOS_PLOTTED]
@@ -25,7 +24,7 @@ class GearCalculator:
         Returns:
             int: Current gear (0 = neutral, 1-5 = gears)
         """
-        self.__get_gear(vehicle_speed, rpm, accelerator_pos, engine_load)
+        return self.__get_gear(vehicle_speed, rpm, accelerator_pos, engine_load)
 
     def __calculate_gear_ratio(self, vehicle_speed: float, rpm: float) -> float:
         """Calculate the current gear ratio based on vehicle speed and RPM."""
