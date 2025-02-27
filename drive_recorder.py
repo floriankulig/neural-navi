@@ -74,7 +74,7 @@ class DriveRecorder:
 
                         frame = frame_future.result()
                         telemetry_data = telemetry_future.result()
-                        # As soon as the data is available, mark the timestamp 
+                        # As soon as the data is available, mark the timestamp
                         timestamp_log = datetime_now().strftime(TIME_FORMAT_LOG)[:-5]
 
                         # Check for data integrity
@@ -86,8 +86,11 @@ class DriveRecorder:
                             writer.writerow(
                                 [cause]
                                 + (
-                                    ["No Data"] * (len(self.telemetry_logger.commands)
-                                    + len(self.telemetry_logger.derived_values))
+                                    ["No Data"]
+                                    * (
+                                        len(self.telemetry_logger.commands)
+                                        + len(self.telemetry_logger.derived_values)
+                                    )
                                 )
                             )
                             time_elapsed = time_time() - start_time
@@ -110,8 +113,6 @@ class DriveRecorder:
                         sleep_func(max_func(0, capture_interval - (time_elapsed)))
         except KeyboardInterrupt:
             print("Recording interrupted by user.")
-        except Exception as e:
-            print(f"An error occurred during recording: {e}")
 
     def stop_recording(self):
         """Stops the recording."""
@@ -121,7 +122,10 @@ class DriveRecorder:
 
     def __check_obd_completeness(self, obd_values: list) -> bool:
         """Checks if all OBD queries delivered a response."""
-        return all(value is not None for value in obd_values)
+        return all(
+            value is not None
+            for value in obd_values[: len(self.telemetry_logger.commands)]
+        )
 
 
 def main():

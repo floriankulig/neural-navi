@@ -3,10 +3,12 @@ import matplotlib.pyplot as plt
 from matplotlib.dates import DateFormatter
 import os
 import seaborn as sns
-from custom_commands import get_gear
+from features.gear import GearCalculator
 
 # from drive_recorder import TIME_FORMAT_LOG
 TIME_FORMAT_LOG = "%Y-%m-%d %H-%M-%S-%f"
+
+get_gear = GearCalculator()
 
 
 # Funktion zum Auflisten der CSV-Dateien im logs-Ordner

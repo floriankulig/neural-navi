@@ -3,7 +3,9 @@
 Neural Navi is a IDSS (Intelligent Decision Support System) that analyses driving and camera data to provide insights and recommendations to drivers. The system is designed to help drivers make better decisions on the road, and to help them improve their driving skills.
 
 ## Setup
+
 1. Create virtual environment:
+
    ```bash
    python -m venv venv --system-site-packages # Raspberry Pi OS (keeps preinstalled Picamera2-Package)
    # or
@@ -11,6 +13,7 @@ Neural Navi is a IDSS (Intelligent Decision Support System) that analyses drivin
    ```
 
 2. Activate virtual environment:
+
    ```bash
    python -m venv venv
    source venv/bin/activate  # Linux/Mac
@@ -22,7 +25,6 @@ Neural Navi is a IDSS (Intelligent Decision Support System) that analyses drivin
    ```bash
    pip install -r requirements.txt
    ```
-
 
 ## What is this about?
 

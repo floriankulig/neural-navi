@@ -1,25 +1,26 @@
 import obd
 import serial.tools.list_ports
-from custom_commands import (
+from features.custom_commands import (
     BRAKE_SIGNAL,
     ACCERLERATOR_POS_MIN,
     ACCERLERATOR_POS_MAX,
-    get_gear,
 )
+from features.brake_force import BrakeForceCalculator
+from features.gear import GearCalculator
 import time
 from helpers import normalize, numeric_or_none
 from datetime import datetime
 
 CUSTOM_COMMANDS = [BRAKE_SIGNAL]
-DERIVED_VALUES = ["GEAR"]
+DERIVED_VALUES = ["GEAR", "BRAKE_FORCE", "PRE_BRAKING", "WHILE_BRAKING"]
 
 COMMANDS_TO_MONITOR = [
     obd.commands.SPEED,
     obd.commands.RPM,
     obd.commands.ACCELERATOR_POS_D,
-    obd.commands.ACCELERATOR_POS_E,
+    # obd.commands.ACCELERATOR_POS_E,
     obd.commands.ENGINE_LOAD,
-    obd.commands.MAF,
+    # obd.commands.MAF,
 ]
 COMMANDS_TO_MONITOR.extend(CUSTOM_COMMANDS)
 
@@ -32,6 +33,8 @@ class TelemetryLogger:
         self.commands = COMMANDS_TO_MONITOR
         self.derived_values = DERIVED_VALUES
         self.connect_to_ecu()
+        self.brake_force = BrakeForceCalculator(connection=self.connection)
+        self.current_gear = GearCalculator()  # New instance
 
     def __watch_commands(self, connection):
         for command in COMMANDS_TO_MONITOR:
@@ -68,7 +71,7 @@ class TelemetryLogger:
             print("❌ Kein Port zum Verbinden ausgewählt.")
             self.__prompt_choose_port()
 
-        self.connection = obd.Async(self.__selected_port_device)
+        self.connection = obd.Async(self.__selected_port_device, delay_cmds=0)
         if not self.connection.is_connected():
             print("❌ Verbindung fehlgeschlagen. ELM327-Verbindung überprüfen.")
             return
@@ -106,24 +109,30 @@ class TelemetryLogger:
         # Process responses in one go
         values = [
             (
-                numeric_or_none(resp)
-                if i < 2
+                normalize(resp, [ACCERLERATOR_POS_MIN, ACCERLERATOR_POS_MAX], [0, 100])
+                if i in [2]  # Accelerator position(s)
                 else (
-                    normalize(
-                        resp, [ACCERLERATOR_POS_MIN, ACCERLERATOR_POS_MAX], [0, 100]
-                    )
-                    if i in [2, 3]
-                    else numeric_or_none(resp) if i < 6 else bool(resp.value)
+                    bool(resp.value)
+                    if i == 4  # Brake signal
+                    else numeric_or_none(resp)  # Speed, RPM, Engine Load
                 )
             )
             for i, resp in enumerate(responses)
         ]
-        calculated_gear = get_gear(values[0], values[1], values[2], values[4])
-        values.append(calculated_gear)
+        # Use gear calculator instead of direct function call
+        calculated_gear = self.current_gear(
+            values[0],  # vehicle_speed
+            values[1],  # rpm
+            values[2],  # accelerator_pos
+            values[3],  # engine_load
+        )
+        (brake_force, pre_braking, while_braking) = self.brake_force()
+        derived_values = [calculated_gear, brake_force, pre_braking, while_braking]
+        values.extend(derived_values)
 
         if with_logs:
             print(
-                f"{timestamp[:-2].replace('-', ':')}: {values[0]} KM/H | {values[1]} RPM | {values[2]} % | {values[4]} % | {values[-2]}"
+                f"{timestamp[:-2].replace('-', ':')}: {values[0]} KM/H | {values[1]} RPM | {values[2]} % | {values[3]} % | {values[4]} | {values[-4]} | {values[-3] * 100:.2f} %"
             )
 
         if with_timestamp:
