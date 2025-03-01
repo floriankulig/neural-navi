@@ -15,6 +15,8 @@ from ultralytics import YOLO
 from device import setup_device
 from imageprocessor import DEFAULT_IMAGE_ROI, ImageProcessor
 
+DEFAULT_VISION_MODEL = "yolo11n.pt"
+
 
 def process_directory_interactive(timestamp_dir, model, device, confidence=0.25):
     """
@@ -220,7 +222,7 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        default="yolo11n.pt",
+        default=DEFAULT_VISION_MODEL,
         help="YOLOv11 model to use (default: yolo11n.pt)",
     )
     args = parser.parse_args()
