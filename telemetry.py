@@ -1,9 +1,8 @@
+from config import ACCERLERATOR_POS_MAX, ACCERLERATOR_POS_MIN, DERIVED_VALUES
 import obd
 import serial.tools.list_ports
 from features.custom_commands import (
     BRAKE_SIGNAL,
-    ACCERLERATOR_POS_MIN,
-    ACCERLERATOR_POS_MAX,
 )
 from features.brake_force import BrakeForceCalculator
 from features.gear import GearCalculator
@@ -12,7 +11,6 @@ from helpers import normalize, numeric_or_none
 from datetime import datetime
 
 CUSTOM_COMMANDS = [BRAKE_SIGNAL]
-DERIVED_VALUES = ["GEAR", "BRAKE_FORCE", "PRE_BRAKING", "WHILE_BRAKING"]
 
 COMMANDS_TO_MONITOR = [
     obd.commands.SPEED,

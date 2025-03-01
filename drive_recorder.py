@@ -1,14 +1,15 @@
 from camera import Camera
+from config import (
+    CAPTURE_INTERVAL,
+    RECORDING_OUTPUT_PATH,
+    TIME_FORMAT_FILES,
+    TIME_FORMAT_LOG,
+)
 from telemetry import TelemetryLogger
 import time
 import os
 import csv
 from datetime import datetime
-
-OUTPUT_PATH = "recordings"
-TIME_FORMAT_FILES = "%Y-%m-%d_%H-%M-%S"
-TIME_FORMAT_LOG = "%Y-%m-%d %H-%M-%S-%f"
-CAPTURE_INTERVAL = 0.5  # 2 Hz
 
 
 class DriveRecorder:
@@ -26,7 +27,7 @@ class DriveRecorder:
     def __create_output_folder(self):
         """Creates the output folder for the recorded drive data."""
         timestamp_start = time.strftime(TIME_FORMAT_FILES)
-        session_folder = os.path.join(OUTPUT_PATH, timestamp_start)
+        session_folder = os.path.join(RECORDING_OUTPUT_PATH, timestamp_start)
         os.makedirs(session_folder, exist_ok=True)
         return session_folder
 

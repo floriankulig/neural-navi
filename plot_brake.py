@@ -5,6 +5,8 @@ import os
 import numpy as np
 import seaborn as sns
 
+from config import RECORDING_OUTPUT_PATH, TIME_FORMAT_LOG
+
 NUM_GRADIENTS = 5
 
 
@@ -47,20 +49,13 @@ def calculate_gradient(y, x=None, deg=1, mode="exp"):
     return gradient
 
 
-# from drive_recorder import TIME_FORMAT_LOG
-TIME_FORMAT_LOG = "%Y-%m-%d %H-%M-%S-%f"
-
-
 # Funktion zum Auflisten der CSV-Dateien im logs-Ordner
 def list_recordings(directory):
     return [f for f in os.listdir(directory) if not f.endswith(".DS_Store")]
 
 
-# Verzeichnis, in dem sich die Logs befinden
-RECORDING_DIRECTORY = "recordings"
-
 # Auflisten der verfügbaren Recording-Ordner
-recordings = list_recordings(RECORDING_DIRECTORY)
+recordings = list_recordings(RECORDING_OUTPUT_PATH)
 
 if not recordings:
     print("Keine Recording-Ordner im 'recordings' Verzeichnis gefunden.")
@@ -86,7 +81,7 @@ while True:
         print("Bitte geben Sie eine Zahl ein.")
 
 # Vollständiger Pfad zur ausgewählten Datei
-file_path = os.path.join(RECORDING_DIRECTORY, selected_recording, "telemetry.csv")
+file_path = os.path.join(RECORDING_OUTPUT_PATH, selected_recording, "telemetry.csv")
 
 # CSV-Datei einlesen
 df = pd.read_csv(

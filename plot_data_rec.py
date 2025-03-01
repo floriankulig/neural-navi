@@ -12,10 +12,10 @@ def list_recordings(directory):
 
 
 # Verzeichnis, in dem sich die Logs befinden
-RECORDING_DIRECTORY = "recordings"
+RECORDING_OUTPUT_PATH = "recordings"
 
 # Auflisten der verfügbaren Recording-Ordner
-recordings = list_recordings(RECORDING_DIRECTORY)
+recordings = list_recordings(RECORDING_OUTPUT_PATH)
 
 if not recordings:
     print("Keine Recording-Ordner im 'recordings' Verzeichnis gefunden.")
@@ -41,7 +41,7 @@ while True:
         print("Bitte geben Sie eine Zahl ein.")
 
 # Vollständiger Pfad zur ausgewählten Datei
-file_path = os.path.join(RECORDING_DIRECTORY, selected_recording, "telemetry.csv")
+file_path = os.path.join(RECORDING_OUTPUT_PATH, selected_recording, "telemetry.csv")
 
 # CSV-Datei einlesen
 df = pd.read_csv(

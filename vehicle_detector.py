@@ -12,10 +12,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from ultralytics import YOLO
 
+from config import DEFAULT_IMAGE_ROI, DEFAULT_VISION_MODEL
 from device import setup_device
-from imageprocessor import DEFAULT_IMAGE_ROI, ImageProcessor
-
-DEFAULT_VISION_MODEL = "yolo11n.pt"
+from imageprocessor import ImageProcessor
 
 
 def process_directory_interactive(timestamp_dir, model, device, confidence=0.25):

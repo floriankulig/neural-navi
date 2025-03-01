@@ -44,10 +44,10 @@ def list_recordings(directory):
 
 
 # Verzeichnis, in dem sich die Logs befinden
-RECORDING_DIRECTORY = "recordings"
+RECORDING_OUTPUT_PATH = "recordings"
 
 # Auflisten der verfügbaren Recording-Ordner
-recordings = list_recordings(RECORDING_DIRECTORY)
+recordings = list_recordings(RECORDING_OUTPUT_PATH)
 
 if not recordings:
     print("Keine Recording-Ordner im 'recordings' Verzeichnis gefunden.")
@@ -56,7 +56,7 @@ if not recordings:
 # TIME_FORMAT_LOG = "%Y-%m-%d %H-%M-%S-%f"
 
 # for recording in recordings:
-#     file_path = os.path.join(RECORDING_DIRECTORY, recording, "telemetry.csv")
+#     file_path = os.path.join(RECORDING_OUTPUT_PATH, recording, "telemetry.csv")
 #     if not os.path.exists(file_path):
 #         print(f"Die Datei {file_path} existiert nicht.")
 #         continue
@@ -78,7 +78,7 @@ if not recordings:
 
 def clean_data():
     file_path = os.path.join(
-        RECORDING_DIRECTORY, "2024-12-08_19-19-26", "telemetry.csv"
+        RECORDING_OUTPUT_PATH, "2024-12-08_19-19-26", "telemetry.csv"
     )
     df = pd.read_csv(file_path)
     df = df[

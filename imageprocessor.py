@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-DEFAULT_IMAGE_ROI = (0, 320, 1920, 600)
+from config import DEFAULT_IMAGE_ROI
 
 
 class ImageProcessor:

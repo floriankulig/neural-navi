@@ -3,11 +3,13 @@ import time
 import cv2
 import numpy as np
 
+from config import DEFAULT_RESOLUTION
+
 
 class Camera:
     def __init__(
         self,
-        resolution=(1920, 1080),
+        resolution=DEFAULT_RESOLUTION,
         show_live_capture=False,
     ):
         # Detect if the system is a Raspberry Pi
@@ -20,7 +22,7 @@ class Camera:
         self.show_live_capture = show_live_capture
         self.configure_camera(resolution=resolution)
 
-    def configure_camera(self, resolution=(1920, 1080)):
+    def configure_camera(self, resolution=DEFAULT_RESOLUTION):
         """Configures the camera based on the system (Raspberry Pi or others)."""
         if self.is_raspberry_pi:
             # Raspberry Pi spezifische Konfiguration mit PiCamera2

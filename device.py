@@ -6,7 +6,7 @@ import torch
 def setup_device():
     """
     Configure the device for optimal performance on Apple Silicon (M3).
-    Returns the device to use for inference.
+    Returns the device to use for inference or training.
     """
     # Check if running on macOS with Apple Silicon
     is_mac = platform.system() == "Darwin"
@@ -17,8 +17,20 @@ def setup_device():
         # Enable Metal Performance Shaders if available
         if torch.backends.mps.is_available():
             device = torch.device("mps")
-            # Set environment variables for optimal MPS performance
+
+            # Optimizations for Apple Silicon
+            # Enable MPS fallback for operations not supported by MPS
             os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+
+            # Enable memory optimization for Apple Silicon
+            os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = (
+                "0.0"  # Reduces memory usage
+            )
+
+            # Enable TensorFloat32 equivalent for MPS
+            # This provides better performance with slightly reduced precision
+            torch.set_float32_matmul_precision("high")
+
             print("🚀 Using MPS device for acceleration.")
         else:
             device = torch.device("cpu")
