@@ -536,7 +536,9 @@ def main():
     )
 
     # Step 5: Visualize and save results
-    visualize_results(stats_df, detection_results, processed_images)
+    visualize_results(
+        stats_df, detection_results, processed_images, selected_model=selected_model
+    )
 
     # Save full results as CSV
     csv_path = RESULTS_DIR / "statistics_summary.csv"
