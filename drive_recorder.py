@@ -13,9 +13,10 @@ from datetime import datetime
 
 
 class DriveRecorder:
-    def __init__(self, show_live_capture=False, with_logs=False):
+    def __init__(self, show_live_capture=False, with_logs=False, compress_images=True):
         self.show_live_capture = show_live_capture
         self.with_logs = with_logs
+        self.compress_images = compress_images
 
         print("⌚🚗 Drive Recorder wird initialisiert...")
         self.camera_system = Camera(
@@ -66,7 +67,10 @@ class DriveRecorder:
                         frame = telemetry_data = None
 
                         # Capture frame and telemetry data in parallel
-                        frame_future = executor.submit(self.camera_system.capture_image)
+                        frame_future = executor.submit(
+                            self.camera_system.capture_image,
+                            compress=self.compress_images,
+                        )
                         telemetry_future = executor.submit(
                             self.telemetry_logger.read_data,
                             with_timestamp=False,
@@ -98,16 +102,14 @@ class DriveRecorder:
                             sleep_func(max_func(0, capture_interval - time_elapsed))
                             continue
 
-                        # Write data to CSV file / image
+                        # Write data to CSV file
                         writer.writerow([timestamp_log] + telemetry_data)
+
+                        # Save image (with compression if enabled)
                         image_filename = os.path.join(
                             self.session_folder, f"{timestamp_log}.jpg"
                         )
-                        self.camera_system.save_image(
-                            frame,
-                            image_filename,
-                            with_logs=self.with_logs,
-                        )
+                        self.__save_image_data(frame, image_filename)
 
                         # Frequency control
                         time_elapsed = time_time() - start_time
@@ -128,9 +130,32 @@ class DriveRecorder:
             for value in obd_values[: len(self.telemetry_logger.commands)]
         )
 
+    def __save_image_data(self, frame, image_filename):
+        try:
+            # forward to save_image method in camera.py
+            self.camera_system.save_image(
+                frame, image_filename, with_logs=self.with_logs
+            )
+        except Exception as e:
+            print(f"❌ Fehler beim Speichern des Bildes: {str(e)}")
+            print(f"  Dateiname: {image_filename}")
+            # Try saving a backup image without compression
+            alt_filename = os.path.join(
+                self.session_folder, f"backup_{int(time.time())}.jpg"
+            )
+            try:
+                self.camera_system.save_image(
+                    frame, alt_filename, with_logs=self.with_logs
+                )
+                print(
+                    f"✅ Bild stattdessen gespeichert als: {os.path.basename(alt_filename)}"
+                )
+            except Exception:
+                print(f"❌ Konnte Bild auch nicht als Backup speichern")
+
 
 def main():
-    drive_recorder = DriveRecorder(with_logs=True)
+    drive_recorder = DriveRecorder(with_logs=True, compress_images=True)
     input("Enter drücken, um die Aufzeichnung zu starten...")
     drive_recorder.start_recording(capture_interval=CAPTURE_INTERVAL)  # 2 Hz
     drive_recorder.stop_recording()

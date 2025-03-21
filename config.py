@@ -16,6 +16,9 @@ DEFAULT_RESOLUTION = (1920, 1080)  # Full HD
 # Region of interest for image processing
 DEFAULT_IMAGE_ROI = (0, 320, 1920, 600)
 
+# Image compression settings
+IMAGE_COMPRESSION_QUALITY = 85  # JPEG-Qualität (0-100)
+
 # OBD settings
 # Capped values as ECU doesn't deliver this value from 0 to 100
 ACCERLERATOR_POS_MIN = 14.12

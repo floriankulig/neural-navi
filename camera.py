@@ -3,7 +3,8 @@ import time
 import cv2
 import numpy as np
 
-from config import DEFAULT_RESOLUTION
+from config import DEFAULT_RESOLUTION, IMAGE_COMPRESSION_QUALITY
+from imageprocessor import ImageProcessor
 
 
 class Camera:
@@ -79,7 +80,7 @@ class Camera:
                 raise RuntimeError("Error: Could not open webcam.")
         print("✅📷 Kamera verbunden.")
 
-    def capture_image(self):
+    def capture_image(self, compress=True):
         """Captures an image from the camera and returns it as a NumPy array (unified image format for both solutions)."""
         if self.is_raspberry_pi:
             # Capture image from PiCamera2 and return as NumPy array
@@ -92,7 +93,13 @@ class Camera:
             if not ret:
                 print("❌ Bild konnte nicht erfasst werden.")
                 return None
-        return frame
+
+        if not compress:
+            return frame
+        compressed_frame = ImageProcessor.compress_image(
+            frame, quality=IMAGE_COMPRESSION_QUALITY
+        )
+        return compressed_frame
 
     def save_image(self, frame, filename: str, with_logs=False):
         """Saves the image in the specified folder with a timestamp in the filename."""
