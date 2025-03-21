@@ -1,0 +1,66 @@
+<html><head><title>YOLO Compression Impact Analysis</title><style>body{font-family:Arial; margin:20px} table{border-collapse:collapse; width:100%} th,td{text-align:left; padding:8px; border:1px solid #ddd} </style></head><body><h1>YOLO Compression Impact Analysis</h1><p>Analysis date: 2025-03-21 20:57:11</p><p>Model: yolo11n.pt, Confidence threshold: 0.25</p><p>Compression quality: 85, Resize factor: 0.75</p><h2>Summary Statistics</h2><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>image_type</th>
+      <th>total_images</th>
+      <th>total_detections</th>
+      <th>avg_detections_per_image</th>
+      <th>median_detections_per_image</th>
+      <th>std_detections_per_image</th>
+      <th>avg_detection_time</th>
+      <th>median_detection_time</th>
+      <th>avg_confidence</th>
+      <th>median_confidence</th>
+      <th>min_confidence</th>
+      <th>max_confidence</th>
+      <th>class_distribution</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>uncompressed</td>
+      <td>289</td>
+      <td>431</td>
+      <td>1.491349</td>
+      <td>1.0</td>
+      <td>1.479068</td>
+      <td>0.026412</td>
+      <td>0.021529</td>
+      <td>0.519303</td>
+      <td>0.484375</td>
+      <td>0.250075</td>
+      <td>0.946789</td>
+      <td>{'truck': 94, 'car': 308, 'bus': 28, 'motorcycle': 1}</td>
+    </tr>
+    <tr>
+      <td>compressed</td>
+      <td>289</td>
+      <td>401</td>
+      <td>1.387543</td>
+      <td>1.0</td>
+      <td>1.329197</td>
+      <td>0.020201</td>
+      <td>0.020156</td>
+      <td>0.539460</td>
+      <td>0.512709</td>
+      <td>0.250144</td>
+      <td>0.945150</td>
+      <td>{'truck': 102, 'car': 271, 'bus': 28}</td>
+    </tr>
+    <tr>
+      <td>compressed_resized</td>
+      <td>289</td>
+      <td>395</td>
+      <td>1.366782</td>
+      <td>1.0</td>
+      <td>1.303603</td>
+      <td>0.020742</td>
+      <td>0.022087</td>
+      <td>0.543952</td>
+      <td>0.504681</td>
+      <td>0.250174</td>
+      <td>0.942747</td>
+      <td>{'truck': 94, 'car': 271, 'bus': 30}</td>
+    </tr>
+  </tbody>
+</table><h2>Visualizations</h2><h3>Avg Detections</h3><img src="avg_detections.png" style="max-width:100%"><br><br><h3>Detection Time</h3><img src="detection_time.png" style="max-width:100%"><br><br><h3>Confidence Distribution</h3><img src="confidence_distribution.png" style="max-width:100%"><br><br><h3>Class Distribution</h3><img src="class_distribution.png" style="max-width:100%"><br><br><h3>Detection Count Comparison</h3><img src="detection_count_comparison.png" style="max-width:100%"><br><br><h3>File Size Comparison</h3><img src="file_size_comparison.png" style="max-width:100%"><br><br><h3>Summary Table</h3><img src="summary_table.png" style="max-width:100%"><br><br></body></html>
