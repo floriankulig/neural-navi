@@ -14,6 +14,7 @@ CAPTURE_INTERVAL = 0.5  # 2 Hz
 DEFAULT_RESOLUTION = (1920, 1080)  # Full HD
 
 # Region of interest for image processing
+# THIS SHOULD ONLY BE USED FOR FHD IMAGES (1920x1080)
 DEFAULT_IMAGE_ROI = (0, 320, 1920, 600)
 
 # Image compression settings
