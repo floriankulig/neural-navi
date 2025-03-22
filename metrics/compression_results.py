@@ -68,6 +68,7 @@ def load_uncompressed_images(source_dir=UNCOMPRESSED_DIR, limit=None):
         if img is not None:
             img_cropped = ImageProcessor.crop_to_roi(img)
             images.append((img_path, img_cropped))
+            # images.append((img_path, img))
 
     print(f"Loaded {len(images)} uncompressed images")
     return images
@@ -91,25 +92,38 @@ def create_compressed_versions(images, compression_quality=IMAGE_COMPRESSION_QUA
         "compressed_resized": [],
     }
 
+    compression_times = {
+        "uncompressed": [0]
+        * len(images),  # No compression time for uncompressed images
+        "compressed": [],
+        "compressed_resized": [],
+    }
+
     # Process each image
     for img_path, img in tqdm(images, desc="Creating compressed versions"):
         # Version 1: Compressed with quality reduction only
+        compression_start = time.time()
         compressed_img = ImageProcessor.compress_image(
             img, quality=compression_quality, resize_factor=None
         )
+        compression_time = time.time() - compression_start
+        compression_times["compressed"].append(compression_time)
         processed_images["compressed"].append((img_path, compressed_img))
 
         # Version 2: Compressed with quality and size reduction
+        compression_start = time.time()
         compressed_resized_img = ImageProcessor.compress_image(
             img,
             quality=compression_quality,
             resize_factor=0.75,  # Reduce to 75% of original size
         )
+        compression_time = time.time() - compression_start
+        compression_times["compressed_resized"].append(compression_time)
         processed_images["compressed_resized"].append(
             (img_path, compressed_resized_img)
         )
 
-    return processed_images
+    return processed_images, compression_times
 
 
 def run_object_detection(processed_images, model, device, confidence=0.25):
@@ -170,12 +184,13 @@ def run_object_detection(processed_images, model, device, confidence=0.25):
     return results
 
 
-def calculate_statistics(detection_results):
+def calculate_statistics(detection_results, compression_times=None):
     """
     Calculate statistics from detection results.
 
     Args:
         detection_results: Dictionary with detection results for each image set
+        compression_times: Dictionary with compression time measurements
 
     Returns:
         DataFrame with statistics
@@ -187,7 +202,12 @@ def calculate_statistics(detection_results):
         num_detections = [r["vehicles_detected"] for r in results]
         detection_times = [r["detection_time"] for r in results]
 
-        # Calculate confidence scores for all detections
+        # Calculate compression times (if available)
+        avg_compression_time = 0
+        if compression_times and img_type in compression_times:
+            avg_compression_time = np.mean(compression_times[img_type])
+
+        # Extract confidence scores for all detections
         all_confidences = []
         for r in results:
             for detection in r["detections"]:
@@ -211,6 +231,9 @@ def calculate_statistics(detection_results):
                 "std_detections_per_image": np.std(num_detections),
                 "avg_detection_time": np.mean(detection_times),
                 "median_detection_time": np.median(detection_times),
+                "avg_compression_time": avg_compression_time,
+                "total_processing_time": np.mean(detection_times)
+                + avg_compression_time,
                 "avg_confidence": np.mean(all_confidences) if all_confidences else 0,
                 "median_confidence": (
                     np.median(all_confidences) if all_confidences else 0
@@ -224,10 +247,160 @@ def calculate_statistics(detection_results):
     return pd.DataFrame(stats)
 
 
+def visualize_compression_performance(stats_df, save_path, selected_model):
+    """
+    Create visualizations for compression performance.
+
+    Args:
+        stats_df: DataFrame with statistics
+        save_path: Directory to save visualization images
+        selected_model: Name of the model used
+    """
+    # Set style
+    sns.set(style="whitegrid")
+    plt.rcParams.update({"font.size": 12})
+
+    # Compression vs Detection Time comparison
+    plt.figure(figsize=(12, 8))
+
+    # Prepare data for stacked bar chart
+    image_types = stats_df["image_type"].tolist()
+    comp_times = stats_df["avg_compression_time"].values * 1000  # Convert to ms
+    detect_times = stats_df["avg_detection_time"].values * 1000  # Convert to ms
+    total_times = stats_df["total_processing_time"].values * 1000  # Convert to ms
+
+    # Plot stacked bars
+    width = 0.7
+    ax = plt.subplot(111)
+    bars1 = ax.bar(
+        image_types, comp_times, width, label="Compression Time", color="#5DA5DA"
+    )
+    bars2 = ax.bar(
+        image_types,
+        detect_times,
+        width,
+        bottom=comp_times,
+        label="Detection Time",
+        color="#F15854",
+    )
+
+    # Add text annotations for each segment and total
+    for i, (ct, dt, tt) in enumerate(zip(comp_times, detect_times, total_times)):
+        # Only show compression time if it's significant
+        if ct > 0.1:
+            ax.text(
+                i,
+                ct / 2,
+                f"{ct:.2f} ms",
+                ha="center",
+                va="center",
+                color="white",
+                fontweight="bold",
+            )
+
+        # Show detection time in center of its segment
+        ax.text(
+            i,
+            ct + dt / 2,
+            f"{dt:.2f} ms",
+            ha="center",
+            va="center",
+            color="white",
+            fontweight="bold",
+        )
+
+        # Show total time at top
+        ax.text(i, tt + 0.5, f"Total: {tt:.2f} ms", ha="center", va="bottom")
+
+    # Calculate and display efficiency metrics
+    for i in range(1, len(image_types)):
+        base_time = total_times[0]  # Uncompressed time
+        current_time = total_times[i]
+        time_saved = base_time - current_time
+
+        if time_saved > 0:
+            efficiency = (time_saved / base_time) * 100
+            ax.text(
+                i,
+                -5,
+                f"↓ {efficiency:.1f}% faster",
+                ha="center",
+                va="top",
+                color="green",
+                fontweight="bold",
+            )
+        else:
+            efficiency = (-time_saved / base_time) * 100
+            ax.text(
+                i,
+                -5,
+                f"↑ {efficiency:.1f}% slower",
+                ha="center",
+                va="top",
+                color="red",
+                fontweight="bold",
+            )
+
+    plt.title("Image Processing Pipeline Performance")
+    plt.ylabel("Time (milliseconds)")
+    plt.xlabel("Image Type")
+    plt.legend(loc="upper right")
+    plt.tight_layout()
+
+    # Save figure
+    plt.savefig(
+        save_path / f"compression_detection_time_{selected_model}_{device}.png", dpi=300
+    )
+
+    # Compression Time Performance Only
+    plt.figure(figsize=(10, 6))
+    ax = sns.barplot(x="image_type", y="avg_compression_time", data=stats_df)
+
+    # Add millisecond labels
+    for i, row in stats_df.iterrows():
+        ms_time = row["avg_compression_time"] * 1000
+        ax.text(
+            i,
+            row["avg_compression_time"] + 0.0001,
+            f"{ms_time:.2f} ms",
+            ha="center",
+            va="bottom",
+        )
+
+    plt.title("Average Image Compression Time")
+    plt.ylabel("Time (seconds)")
+    plt.xlabel("Image Type")
+    plt.tight_layout()
+    plt.savefig(save_path / f"compression_time_{selected_model}_{device}.png", dpi=300)
+
+    # Efficiency Analysis - Total processing time
+    plt.figure(figsize=(10, 6))
+    ax = sns.barplot(x="image_type", y="total_processing_time", data=stats_df)
+
+    for i, row in stats_df.iterrows():
+        ms_time = row["total_processing_time"] * 1000
+        ax.text(
+            i,
+            row["total_processing_time"] + 0.0005,
+            f"{ms_time:.2f} ms",
+            ha="center",
+            va="bottom",
+        )
+
+    plt.title("Total Processing Time (Compression + Detection)")
+    plt.ylabel("Time (seconds)")
+    plt.xlabel("Image Type")
+    plt.tight_layout()
+    plt.savefig(
+        save_path / f"total_processing_time_{selected_model}_{device}.png", dpi=300
+    )
+
+
 def visualize_results(
     stats_df,
     detection_results,
     processed_images=None,
+    compression_times=None,
     save_path=RESULTS_DIR,
     selected_model=DEFAULT_VISION_MODEL,
 ):
@@ -237,11 +410,18 @@ def visualize_results(
     Args:
         stats_df: DataFrame with statistics
         detection_results: Dictionary with detection results
+        processed_images: Dictionary with processed images
+        compression_times: Dictionary with compression time measurements
         save_path: Directory to save visualization images
+        selected_model: Model used for detection
     """
     # Set style
     sns.set(style="whitegrid")
     plt.rcParams.update({"font.size": 12})
+
+    # Add compression performance visualizations
+    if "avg_compression_time" in stats_df.columns:
+        visualize_compression_performance(stats_df, save_path, selected_model)
 
     # 1. Average detections per image type
     plt.figure(figsize=(10, 6))
@@ -371,25 +551,31 @@ def visualize_results(
                 # Calculate sizes directly in memory without writing to disk
                 compressed_sizes = []
                 for i, (img_path, img) in enumerate(processed_images[img_type][:10]):
-                    # For compressed images, get the compressed data directly
+                    # For compressed images, estimate file size by encoding directly
                     if img_type == "compressed":
-                        compressed_data = ImageProcessor.compress_image(
-                            img, quality=IMAGE_COMPRESSION_QUALITY
+                        # Use imencode to get compressed bytes
+                        _, encoded_img = cv2.imencode(
+                            ".jpg",
+                            img,
+                            [cv2.IMWRITE_JPEG_QUALITY, IMAGE_COMPRESSION_QUALITY],
                         )
                     else:  # compressed_resized
-                        compressed_data = ImageProcessor.compress_image(
-                            img, quality=IMAGE_COMPRESSION_QUALITY, resize_factor=0.75
+                        # First resize
+                        height, width = img.shape[:2]
+                        new_height = int(height * 0.75)
+                        new_width = int(width * 0.75)
+                        resized_img = cv2.resize(
+                            img, (new_width, new_height), interpolation=cv2.INTER_AREA
+                        )
+                        # Then compress
+                        _, encoded_img = cv2.imencode(
+                            ".jpg",
+                            resized_img,
+                            [cv2.IMWRITE_JPEG_QUALITY, IMAGE_COMPRESSION_QUALITY],
                         )
 
                     # Calculate size in KB
-                    _, encoded_data = cv2.imencode(
-                        ".jpg",
-                        compressed_data,
-                        [cv2.IMWRITE_JPEG_QUALITY, IMAGE_COMPRESSION_QUALITY],
-                    )
-
-                    # Calculate size in KB
-                    compressed_sizes.append(len(encoded_data) / 1024)
+                    compressed_sizes.append(len(encoded_img) / 1024)
 
                 avg_size = np.mean(compressed_sizes)
                 percentage = (avg_size / file_sizes[0]["size"]) * 100
@@ -419,22 +605,24 @@ def visualize_results(
             save_path / f"file_size_comparison_{selected_model}_{device}.png", dpi=300
         )
 
-    # 7. Summary table
-    plt.figure(figsize=(12, 6))
+    # 7. Summary table with compression metrics
+    plt.figure(figsize=(14, 6))
     plt.axis("off")
 
-    # Select summary columns
+    # Select summary columns including compression metrics
     summary_data = stats_df[
         [
             "image_type",
             "total_detections",
             "avg_detections_per_image",
             "avg_confidence",
+            "avg_compression_time",
             "avg_detection_time",
+            "total_processing_time",
         ]
     ]
 
-    # Format the data
+    # Format the data for display
     formatted_data = summary_data.copy()
     formatted_data["avg_detections_per_image"] = formatted_data[
         "avg_detections_per_image"
@@ -442,9 +630,16 @@ def visualize_results(
     formatted_data["avg_confidence"] = formatted_data["avg_confidence"].map(
         "{:.3f}".format
     )
-    formatted_data["avg_detection_time"] = formatted_data["avg_detection_time"].map(
-        lambda x: f"{x*1000:.1f} ms"
+    # Convert time values to milliseconds for better readability
+    formatted_data["avg_compression_time"] = formatted_data["avg_compression_time"].map(
+        lambda x: f"{x*1000:.2f} ms"
     )
+    formatted_data["avg_detection_time"] = formatted_data["avg_detection_time"].map(
+        lambda x: f"{x*1000:.2f} ms"
+    )
+    formatted_data["total_processing_time"] = formatted_data[
+        "total_processing_time"
+    ].map(lambda x: f"{x*1000:.2f} ms")
 
     # Create table
     table = plt.table(
@@ -458,9 +653,11 @@ def visualize_results(
     table.set_fontsize(10)
     table.scale(1.2, 1.5)
 
-    plt.title("Detection Performance Summary", pad=20)
+    plt.title("Performance Summary with Compression Metrics", pad=20)
     plt.tight_layout()
-    plt.savefig(save_path / f"summary_table_{selected_model}_{device}.png", dpi=300)
+    plt.savefig(
+        save_path / f"complete_summary_table_{selected_model}_{device}.png", dpi=300
+    )
 
     print(f"Saved all visualizations to {save_path}")
 
@@ -500,9 +697,12 @@ def main():
 
     print("🔍 Starting compression impact analysis on YOLO detection")
 
+    # Set up device for inference
+    device = setup_device()
+
     # Load YOLO model
     selected_model = args.model
-    print(f"🧠 Loading _{selected_model}_{device} model...")
+    print(f"🧠 Loading {selected_model} model...")
     model = YOLO(selected_model)
     print("✅ Model loaded successfully.")
 
@@ -513,34 +713,41 @@ def main():
         print(f"❌ No images found in {UNCOMPRESSED_DIR}. Exiting.")
         return
 
-    # Step 2: Create compressed versions
-    processed_images = create_compressed_versions(uncompressed_images, args.quality)
+    # Step 2: Create compressed versions with timing information
+    processed_images, compression_times = create_compressed_versions(
+        uncompressed_images, args.quality
+    )
 
     # Step 3: Run object detection
     detection_results = run_object_detection(
         processed_images, model, device, confidence=args.conf
     )
 
-    # Step 4: Calculate statistics
-    stats_df = calculate_statistics(detection_results)
+    # Step 4: Calculate statistics with compression times
+    stats_df = calculate_statistics(detection_results, compression_times)
 
-    # Print statistics summary
-    print("\nStatistics Summary:")
+    # Print statistics summary including compression metrics
+    print("\nStatistics Summary (with Compression Metrics):")
     print(
         stats_df[
             [
                 "image_type",
                 "total_detections",
                 "avg_detections_per_image",
-                "avg_confidence",
+                "avg_compression_time",
                 "avg_detection_time",
+                "total_processing_time",
             ]
         ]
     )
 
     # Step 5: Visualize and save results
     visualize_results(
-        stats_df, detection_results, processed_images, selected_model=selected_model
+        stats_df,
+        detection_results,
+        processed_images,
+        compression_times,
+        selected_model=selected_model,
     )
 
     # Save full results as CSV
@@ -570,15 +777,22 @@ def main():
         f.write("<h2>Summary Statistics</h2>")
         f.write(stats_csv.to_html(index=False))
         f.write("<h2>Visualizations</h2>")
-        for img_name in [
+
+        # Include all visualization images in the report
+        visualization_images = [
+            f"compression_detection_time_{selected_model}_{device}.png",
+            f"compression_time_{selected_model}_{device}.png",
+            f"total_processing_time_{selected_model}_{device}.png",
             f"avg_detections_{selected_model}_{device}.png",
             f"detection_time_{selected_model}_{device}.png",
             f"confidence_distribution_{selected_model}_{device}.png",
             f"class_distribution_{selected_model}_{device}.png",
             f"detection_count_comparison_{selected_model}_{device}.png",
             f"file_size_comparison_{selected_model}_{device}.png",
-            f"summary_table_{selected_model}_{device}.png",
-        ]:
+            f"complete_summary_table_{selected_model}_{device}.png",
+        ]
+
+        for img_name in visualization_images:
             img_path = f"{img_name}"
             f.write(f'<h3>{img_name[:-4].replace("_", " ").title()}</h3>')
             f.write(f'<img src="{img_path}" style="max-width:100%"><br><br>')

@@ -8,6 +8,7 @@
 recordings/
 
 metrics/*.jpg
+metrics/results_*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
