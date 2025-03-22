@@ -63,8 +63,6 @@ def load_uncompressed_images(source_dir=UNCOMPRESSED_DIR, limit=None):
         img = cv2.imread(str(img_path))
 
         if img is not None:
-            # Convert BGR to RGB
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             img_cropped = ImageProcessor.crop_to_roi(img)
             images.append((img_path, img_cropped))
 
@@ -93,27 +91,17 @@ def create_compressed_versions(images, compression_quality=IMAGE_COMPRESSION_QUA
     # Process each image
     for img_path, img in tqdm(images, desc="Creating compressed versions"):
         # Version 1: Compressed with quality reduction only
-        compressed_data = ImageProcessor.compress_image(
+        compressed_img = ImageProcessor.compress_image(
             img, quality=compression_quality, resize_factor=None
         )
-        # Convert bytes back to image
-        compressed_img = cv2.imdecode(
-            np.frombuffer(compressed_data, np.uint8), cv2.IMREAD_COLOR
-        )
-        compressed_img = cv2.cvtColor(compressed_img, cv2.COLOR_BGR2RGB)
         processed_images["compressed"].append((img_path, compressed_img))
 
         # Version 2: Compressed with quality and size reduction
-        compressed_resized_data = ImageProcessor.compress_image(
+        compressed_resized_img = ImageProcessor.compress_image(
             img,
             quality=compression_quality,
             resize_factor=0.75,  # Reduce to 75% of original size
         )
-        # Convert bytes back to image
-        compressed_resized_img = cv2.imdecode(
-            np.frombuffer(compressed_resized_data, np.uint8), cv2.IMREAD_COLOR
-        )
-        compressed_resized_img = cv2.cvtColor(compressed_resized_img, cv2.COLOR_BGR2RGB)
         processed_images["compressed_resized"].append(
             (img_path, compressed_resized_img)
         )

@@ -82,7 +82,7 @@ class ImageProcessor:
             target_format: Output format ('jpg', 'png', etc.)
 
         Returns:
-            Compressed image as bytes
+            Compressed image as MatLike object (NumPy array) or None if failed
         """
         if image is None:
             return None
@@ -148,15 +148,15 @@ class ImageProcessor:
             ext = "jpg"  # Default to JPG
 
         # Now compress
-        compressed_data = ImageProcessor.compress_image(
+        compressed_img = ImageProcessor.compress_image(
             image, quality=quality, resize_factor=resize_factor, target_format=ext
         )
 
-        if compressed_data is None:
+        if compressed_img is None:
             return False
 
         # Save to file
         with open(filename, "wb") as f:
-            f.write(compressed_data)
+            f.write(compressed_img.tobytes())
 
         return True
