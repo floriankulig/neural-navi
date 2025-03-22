@@ -41,6 +41,9 @@ VEHICLE_CLASSES = [2, 3, 5, 7]
 # Create results directory if it doesn't exist
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
+# Set up device for inference
+device = setup_device()
+
 
 def load_uncompressed_images(source_dir=UNCOMPRESSED_DIR, limit=None):
     """
@@ -255,7 +258,7 @@ def visualize_results(
     plt.ylabel("Average number of vehicles detected")
     plt.xlabel("Image Type")
     plt.tight_layout()
-    plt.savefig(save_path / f"avg_detections_{selected_model}.png", dpi=300)
+    plt.savefig(save_path / f"avg_detections_{selected_model}_{device}.png", dpi=300)
 
     # 2. Detection time comparison
     plt.figure(figsize=(10, 6))
@@ -272,7 +275,7 @@ def visualize_results(
     plt.ylabel("Time (seconds)")
     plt.xlabel("Image Type")
     plt.tight_layout()
-    plt.savefig(save_path / f"detection_time_{selected_model}.png", dpi=300)
+    plt.savefig(save_path / f"detection_time_{selected_model}_{device}.png", dpi=300)
 
     # 3. Confidence score distribution
     plt.figure(figsize=(12, 6))
@@ -295,7 +298,9 @@ def visualize_results(
     plt.ylabel("Density")
     plt.legend()
     plt.tight_layout()
-    plt.savefig(save_path / f"confidence_distribution_{selected_model}.png", dpi=300)
+    plt.savefig(
+        save_path / f"confidence_distribution_{selected_model}_{device}.png", dpi=300
+    )
 
     # 4. Vehicle class distribution
     plt.figure(figsize=(12, 8))
@@ -314,7 +319,9 @@ def visualize_results(
         plt.ylabel("Count")
         plt.xlabel("Vehicle Class")
         plt.tight_layout()
-        plt.savefig(save_path / f"class_distribution_{selected_model}.png", dpi=300)
+        plt.savefig(
+            save_path / f"class_distribution_{selected_model}_{device}.png", dpi=300
+        )
 
     # 5. Detection count comparison
     # Extract detection counts per image
@@ -338,7 +345,9 @@ def visualize_results(
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig(save_path / f"detection_count_comparison_{selected_model}.png", dpi=300)
+    plt.savefig(
+        save_path / f"detection_count_comparison_{selected_model}_{device}.png", dpi=300
+    )
 
     # 6. File size reduction analysis
     if processed_images and len(detection_results["uncompressed"]) > 0:
@@ -373,7 +382,14 @@ def visualize_results(
                         )
 
                     # Calculate size in KB
-                    compressed_sizes.append(len(compressed_data) / 1024)
+                    _, encoded_data = cv2.imencode(
+                        ".jpg",
+                        compressed_data,
+                        [cv2.IMWRITE_JPEG_QUALITY, IMAGE_COMPRESSION_QUALITY],
+                    )
+
+                    # Calculate size in KB
+                    compressed_sizes.append(len(encoded_data) / 1024)
 
                 avg_size = np.mean(compressed_sizes)
                 percentage = (avg_size / file_sizes[0]["size"]) * 100
@@ -399,7 +415,9 @@ def visualize_results(
         plt.ylabel("Size (KB)")
         plt.xlabel("Image Type")
         plt.tight_layout()
-        plt.savefig(save_path / f"file_size_comparison_{selected_model}.png", dpi=300)
+        plt.savefig(
+            save_path / f"file_size_comparison_{selected_model}_{device}.png", dpi=300
+        )
 
     # 7. Summary table
     plt.figure(figsize=(12, 6))
@@ -442,7 +460,7 @@ def visualize_results(
 
     plt.title("Detection Performance Summary", pad=20)
     plt.tight_layout()
-    plt.savefig(save_path / f"summary_table_{selected_model}.png", dpi=300)
+    plt.savefig(save_path / f"summary_table_{selected_model}_{device}.png", dpi=300)
 
     print(f"Saved all visualizations to {save_path}")
 
@@ -482,12 +500,9 @@ def main():
 
     print("🔍 Starting compression impact analysis on YOLO detection")
 
-    # Set up device for inference
-    device = setup_device()
-
     # Load YOLO model
     selected_model = args.model
-    print(f"🧠 Loading _{selected_model} model...")
+    print(f"🧠 Loading _{selected_model}_{device} model...")
     model = YOLO(selected_model)
     print("✅ Model loaded successfully.")
 
@@ -556,13 +571,13 @@ def main():
         f.write(stats_csv.to_html(index=False))
         f.write("<h2>Visualizations</h2>")
         for img_name in [
-            f"avg_detections_{selected_model}.png",
-            f"detection_time_{selected_model}.png",
-            f"confidence_distribution_{selected_model}.png",
-            f"class_distribution_{selected_model}.png",
-            f"detection_count_comparison_{selected_model}.png",
-            f"file_size_comparison_{selected_model}.png",
-            f"summary_table_{selected_model}.png",
+            f"avg_detections_{selected_model}_{device}.png",
+            f"detection_time_{selected_model}_{device}.png",
+            f"confidence_distribution_{selected_model}_{device}.png",
+            f"class_distribution_{selected_model}_{device}.png",
+            f"detection_count_comparison_{selected_model}_{device}.png",
+            f"file_size_comparison_{selected_model}_{device}.png",
+            f"summary_table_{selected_model}_{device}.png",
         ]:
             img_path = f"{img_name}"
             f.write(f'<h3>{img_name[:-4].replace("_", " ").title()}</h3>')
