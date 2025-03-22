@@ -57,14 +57,16 @@ class Camera:
                 # Minimale und maximale Belichtungszeit (in Mikrosekunden)
                 # Min: 1000 μs (1 ms) für helle Szenen
                 # Max: 20000 μs (20 ms) für dunklere Szenen
-                "ExposureTime": [1000, 20000],
+                # "ExposureTime": [1000, 20000],
+                "ExposureTime": 10000,  # 10ms (Kompromiss zwischen 1ms und 20ms)
                 # Setze Mindestbildrate auf 20 FPS (50000 μs)
                 "FrameDurationLimits": (20000, 50000),
                 # Aktiviere HDR für bessere Dynamik zwischen hellen und dunklen Bereichen
                 # (Falls von deiner Kamera unterstützt)
                 "AwbEnable": True,  # Auto-Weißabgleich
                 # Optional: ISO-Werte für bessere Low-Light-Performance
-                "AnalogueGain": [1.0, 4.0],  # Min und Max Gain
+                # "AnalogueGain": [1.0, 4.0],  # Min und Max Gain
+                "AnalogueGain": 2.0,
             }
             self.camera.configure(config)
             print("📷 PiCamera2 konfiguriert.")
