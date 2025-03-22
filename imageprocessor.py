@@ -123,8 +123,7 @@ class ImageProcessor:
         compressed_img = cv2.imdecode(
             np.frombuffer(encoded_img, np.uint8), cv2.IMREAD_COLOR
         )
-        compressed_img = cv2.cvtColor(compressed_img, cv2.COLOR_BGR2RGB)
-        return compressed_img.tobytes()
+        return compressed_img
 
     @staticmethod
     def save_compressed_image(image, filename, quality=85, resize_factor=None):
