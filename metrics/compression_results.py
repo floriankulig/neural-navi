@@ -31,7 +31,7 @@ from imageprocessor import ImageProcessor
 
 # Constants
 METRICS_DIR = Path("metrics")
-UNCOMPRESSED_DIR = METRICS_DIR / "uncompressed_images"
+UNCOMPRESSED_DIR = METRICS_DIR / "test_images"
 RESULTS_DIR = METRICS_DIR / "results"
 COMPARISON_TYPES = ["uncompressed", "compressed", "compressed_resized"]
 
