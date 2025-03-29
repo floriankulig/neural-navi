@@ -1,3 +1,6 @@
 {
-  "recommendations": ["ms-python.python"]
+  "recommendations": [
+    "mechatroner.rainbow-csv",
+    "ms-python.black-formatter"
+  ]
 }
