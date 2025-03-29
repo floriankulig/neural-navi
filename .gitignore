@@ -13,6 +13,9 @@ metrics/*/*.png
 metrics/*/*.html
 metrics/*/*.csv
 
+deep/*data*
+deep/nuimage*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
