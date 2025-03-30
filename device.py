@@ -1,5 +1,26 @@
 import os
 import platform
+import sys
+import importlib
+
+# Set environment variables for Apple Silicon before torch import
+is_mac = platform.system() == "Darwin"
+is_apple_silicon = "arm" in platform.processor().lower()
+
+if is_mac and is_apple_silicon:
+    # Set MPS environment variables before torch import
+    os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+    os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"  # Reduces memory usage
+
+    # Check if torch was already imported and needs reloading
+    if "torch" in sys.modules:
+        print("🔄 Reloading PyTorch modules to apply MPS settings...")
+        # Remove all torch-related modules to force reimport
+        for module_name in list(sys.modules.keys()):
+            if module_name.startswith("torch"):
+                sys.modules.pop(module_name, None)
+
+# Now import torch with environment variables properly set
 import torch
 
 
@@ -18,18 +39,13 @@ def setup_device():
         if torch.backends.mps.is_available():
             device = torch.device("mps")
 
-            # Optimizations for Apple Silicon
-            # Enable MPS fallback for operations not supported by MPS
-            os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-
-            # Enable memory optimization for Apple Silicon
-            os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = (
-                "0.0"  # Reduces memory usage
-            )
-
             # Enable TensorFloat32 equivalent for MPS
             # This provides better performance with slightly reduced precision
             torch.set_float32_matmul_precision("high")
+
+            # Verify MPS fallback is enabled
+            if os.environ.get("PYTORCH_ENABLE_MPS_FALLBACK") == "1":
+                print("✅ MPS fallback is enabled for unsupported operations.")
 
             print("🚀 Using MPS device for acceleration.")
         else:
