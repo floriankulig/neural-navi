@@ -34,39 +34,14 @@ class Camera:
 
             # Konfiguriere die PiCamera2 mit benutzerdefinierten Einstellungen
             config = self.camera.create_video_configuration(main={"size": resolution})
-            # config["controls"] = {
-            #     "AeEnable": False,
-            #     "AfMode": controls.AfModeEnum.Manual,
-            #     "NoiseReductionMode": controls.draft.NoiseReductionModeEnum.Fast,
-            #     "Saturation": 1.1,
-            #     "Sharpness": 1.2,
-            #     "Contrast": 1.2,
-            #     "ExposureTime": 1000,  # 1ms
-            #     "FrameDurationLimits": (33333, 33333),
-            # }
             config["controls"] = {
                 "Saturation": 1.1,
-                "Sharpness": 1.2,
-                "Contrast": 1.2,
-                # Aktiviere automatische Belichtung für verschiedene Lichtverhältnisse
+                "Sharpness": 1.1,
+                # "Contrast": 1.1,
                 "AeEnable": True,
-                # Autofokus auf Dauerbetrieb stellen für dynamische Szenen
-                "AfMode": controls.AfModeEnum.Continuous,
-                # Schnelle Rauschreduzierung für Echtzeitaufnahmen
-                "NoiseReductionMode": controls.draft.NoiseReductionModeEnum.Fast,
-                # Minimale und maximale Belichtungszeit (in Mikrosekunden)
-                # Min: 1000 μs (1 ms) für helle Szenen
-                # Max: 20000 μs (20 ms) für dunklere Szenen
-                # "ExposureTime": [1000, 20000],
-                "ExposureTime": 10000,  # 10ms (Kompromiss zwischen 1ms und 20ms)
-                # Setze Mindestbildrate auf 20 FPS (50000 μs)
-                "FrameDurationLimits": (20000, 50000),
-                # Aktiviere HDR für bessere Dynamik zwischen hellen und dunklen Bereichen
-                # (Falls von deiner Kamera unterstützt)
+                # Setze Mindestbildrate auf 30 FPS (33333 μs)
+                "FrameDurationLimits": (20000, 33333),
                 "AwbEnable": True,  # Auto-Weißabgleich
-                # Optional: ISO-Werte für bessere Low-Light-Performance
-                # "AnalogueGain": [1.0, 4.0],  # Min und Max Gain
-                "AnalogueGain": 2.0,
             }
             self.camera.configure(config)
             print("📷 PiCamera2 konfiguriert.")
