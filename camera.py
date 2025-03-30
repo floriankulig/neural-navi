@@ -57,7 +57,7 @@ class Camera:
                 raise RuntimeError("Error: Could not open webcam.")
         print("✅📷 Kamera verbunden.")
 
-    def capture_image(self, compress=True):
+    def capture_image(self, compress=False):
         """Captures an image from the camera and returns it as a NumPy array (unified image format for both solutions)."""
         if self.is_raspberry_pi:
             # Capture image from PiCamera2 and return as NumPy array
