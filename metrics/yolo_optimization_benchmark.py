@@ -16,8 +16,6 @@ import seaborn as sns
 from pathlib import Path
 import cv2
 from tqdm import tqdm
-from device import setup_device
-from ultralytics import YOLO
 
 # Add parent directory to path for imports from main project
 script_dir = Path(__file__).parent
@@ -25,6 +23,8 @@ project_root = script_dir.parent
 sys.path.insert(0, str(project_root))
 
 # Import project modules
+from device import setup_device
+from ultralytics import YOLO
 from config import DEFAULT_VISION_MODEL, DEFAULT_IMAGE_ROI
 from imageprocessor import ImageProcessor
 
