@@ -15,6 +15,8 @@ metrics/*/*.csv
 
 deep/*data*
 deep/nuimage*
+deep/runs
+deep/*.pt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
