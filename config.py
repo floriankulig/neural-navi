@@ -15,7 +15,7 @@ DEFAULT_RESOLUTION = (1920, 1080)  # Full HD
 
 # Region of interest for image processing
 # THIS SHOULD ONLY BE USED FOR FHD IMAGES (1920x1080)
-DEFAULT_IMAGE_ROI = (0, 320, 1920, 600)
+DEFAULT_IMAGE_ROI = (0, 320, 1920, 580)
 
 # Region of interest for Autofocus
 # THIS SHOULD ONLY BE USED FOR FHD IMAGES (1920x1080)
