@@ -3,7 +3,7 @@ import time
 import cv2
 import numpy as np
 
-from config import DEFAULT_RESOLUTION, IMAGE_COMPRESSION_QUALITY
+from config import DEFAULT_RESOLUTION, IMAGE_COMPRESSION_QUALITY, DEFAULT_IMAGE_FOCUS
 from imageprocessor import ImageProcessor
 
 
@@ -42,6 +42,10 @@ class Camera:
                 # Setze Mindestbildrate auf 30 FPS (33333 μs)
                 "FrameDurationLimits": (20000, 33333),
                 "AwbEnable": True,  # Auto-Weißabgleich
+                # Autofocus
+                "AfMode": controls.AfModeContinuous,
+                "AfMetering": controls.AfMeteringWindows,
+                "AfWindows": [DEFAULT_IMAGE_FOCUS],     
             }
             self.camera.configure(config)
             print("📷 PiCamera2 konfiguriert.")
