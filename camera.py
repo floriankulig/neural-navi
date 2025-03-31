@@ -33,24 +33,33 @@ class Camera:
             self.camera = Picamera2()
 
             # Konfiguriere die PiCamera2 mit benutzerdefinierten Einstellungen
-            config = self.camera.create_video_configuration(main={"size": resolution})
+            mode = self.camera.sensor_modes[1]
+            fps = mode["fps"]
+            assert fps >= 30, "Error: We want to record at least 30 fps."
+            config = self.camera.create_video_configuration(
+                main={"size": resolution},
+                sensor={"output_size": mode["size"], "bit_depth": mode["bit_depth"]},
+            )
             config["controls"] = {
                 "Saturation": 1.1,
-                "Sharpness": 1.1,
+                "Sharpness": 1.2,
                 # "Contrast": 1.1,
                 "AeEnable": True,
-                # Setze Mindestbildrate auf 30 FPS (33333 μs)
-                "FrameDurationLimits": (20000, 33333),
+                # "FrameRate": 30,
+                "FrameRate": mode["fps"],
+                # "Brightness": 0.1,
+                "HdrMode": controls.HdrModeEnum.SingleExposure,
                 "AwbEnable": True,  # Auto-Weißabgleich
                 # Autofocus
-                "AfMode": controls.AfModeContinuous,
-                "AfMetering": controls.AfMeteringWindows,
-                "AfWindows": [DEFAULT_IMAGE_FOCUS],     
+                "AfMode": controls.AfModeEnum.Continuous,
+                "AfMetering": controls.AfMeteringEnum.Windows,
+                "AfWindows": [DEFAULT_IMAGE_FOCUS],
             }
             self.camera.configure(config)
-            print("📷 PiCamera2 konfiguriert.")
+            print(f"📷 PiCamera2 bei {resolution} und {fps} FPS konfiguriert.")
 
             self.camera.start()
+            print(self.camera.capture_metadata())
 
         else:
             # Standard-Webcam-Configuration for MacOS and Windows
