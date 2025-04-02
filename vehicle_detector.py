@@ -17,7 +17,9 @@ from config import DEFAULT_IMAGE_ROI, DEFAULT_VISION_MODEL
 from imageprocessor import ImageProcessor
 
 
-def process_directory_interactive(timestamp_dir, model, device, confidence=0.25):
+def process_directory_interactive(
+    timestamp_dir, model, device, confidence=0.25, imgsz=640, half=False
+):
     """
     Process all images in the given directory using the YOLO model and show them in an interactive viewer.
 
@@ -66,11 +68,14 @@ def process_directory_interactive(timestamp_dir, model, device, confidence=0.25)
         img_cropped = ImageProcessor.crop_to_roi(img_rgb)
 
         # Run detection - specify device for Apple Silicon optimization
-        results = model(img_cropped, conf=confidence, device=device)
+        results = model(
+            img_cropped, conf=confidence, device=device, half=half, imgsz=imgsz
+        )
 
         # Filter for vehicles (car, truck, motorcycle, bus)
         # YOLOv11 class indices: car=2, motorcycle=3, bus=5, truck=7
         vehicle_classes = [2, 3, 5, 7]
+        # vehicle_classes = [0, 1, 2, 3, 4, 5, 6] #for tuned model
 
         # Process results
         detections = []
@@ -224,6 +229,17 @@ def main():
         default=DEFAULT_VISION_MODEL,
         help="YOLOv11 model to use (default: yolo11n.pt)",
     )
+    parser.add_argument(
+        "--imgsz",
+        type=int,
+        default=640,
+        help="imgsz (default: 640) - image size for inference",
+    )
+    parser.add_argument(
+        "--half",
+        action="store_true",
+        help="Use half precision for inference (default: False)",
+    )
     args = parser.parse_args()
 
     # Setup device (optimized for Apple Silicon M3)
@@ -266,7 +282,14 @@ def main():
         return
 
     print(f"\n🔄 Processing directory: {selected_dir}")
-    process_directory_interactive(selected_dir, model, device, confidence=args.conf)
+    process_directory_interactive(
+        selected_dir,
+        model,
+        device,
+        confidence=args.conf,
+        imgsz=args.imgsz,
+        half=args.half,
+    )
 
     print("✅ Processing complete.")
 
