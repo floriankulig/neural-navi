@@ -86,7 +86,7 @@ def load_test_images(source_dir=TEST_IMAGES_DIR, limit=None):
 
 
 def run_model_inference(
-    model, images, device, conf=0.25, imgsz=640, half=False, warmup=True
+    model, images, device, conf=0.25, imgsz=640, half=False, warmup=True, int8=False
 ):
     """
     Run inference with the specified model and collect performance metrics.
@@ -110,7 +110,7 @@ def run_model_inference(
         print("Warming up model...")
         warmup_image = images[0][1]
         for _ in range(3):  # 3 warm-up runs
-            model(warmup_image, device=device, verbose=False)
+            model(warmup_image, device=device, verbose=False, format="ncnn")
 
     print(f"Running inference with model: {model_name}")
 
@@ -125,7 +125,13 @@ def run_model_inference(
 
         # Run inference
         predictions = model(
-            img, conf=conf, device=device, imgsz=imgsz, half=half, verbose=False
+            img,
+            conf=conf,
+            device=device,
+            imgsz=imgsz,
+            half=half,
+            verbose=False,
+            format="ncnn",
         )
 
         # End timing
@@ -1431,7 +1437,7 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        default=DEFAULT_VISION_MODEL,
+        default="./yolo11ncnn",
         help=f"Path to the YOLO model (default: {DEFAULT_VISION_MODEL})",
     )
     parser.add_argument(
@@ -1556,6 +1562,8 @@ def main():
 
             # Create results folder with uniquely identifiable name
             model_name = Path(model_path).stem
+            use_int8 = "int8" in model_name.lower()
+            args.half = args.half or use_int8
             results_folder = create_results_folder(
                 model_name=model_name,
                 device_name=device_name,
@@ -1592,6 +1600,7 @@ def main():
                         imgsz=args.imgsz,
                         half=args.half,
                         warmup=(pass_num == 0 and not args.no_warmup),
+                        int8=use_int8,
                     )
                     all_pass_results.append(pass_results)
 
@@ -1630,6 +1639,7 @@ def main():
                     imgsz=args.imgsz,
                     half=args.half,
                     warmup=not args.no_warmup,
+                    int8=use_int8,
                 )
 
             # Run pipeline simulation if requested
