@@ -26,7 +26,7 @@ import torch
 
 def setup_device():
     """
-    Configure the device for optimal performance on Apple Silicon (M3).
+    Configure the device for optimal performance on Apple Silicon (M3) and Raspberry Pi 5 8GB.
     Returns the device to use for inference or training.
     """
     # Check if running on macOS with Apple Silicon
