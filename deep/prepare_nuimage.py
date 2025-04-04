@@ -16,35 +16,47 @@ os.makedirs(output_path, exist_ok=True)
 
 nuim = NuImages(dataroot=DATA_SET_PATH, version="v1.0-mini", verbose=True, lazy=True)
 SAMPLES = nuim.sample
-SAMPLES = SAMPLES[:100]
+# SAMPLES = SAMPLES[:5]
+
 
 # Front-Kamera-Bilder identifizieren (für Fahrzeuge, die sich wegbewegen)
-def filter_front_camera_images(samples):
+def filter_straight_camera_images(samples):
     """Filtert Bilder aus der Frontkamera."""
     front_camera_samples = []
 
-    for sample in samples: 
+    for sample in samples:
         key_camera_token = sample["key_camera_token"]
         sample_data = nuim.get("sample_data", key_camera_token)
         filename = sample_data["filename"]
         is_key_frame = sample_data["is_key_frame"]
-        if is_key_frame and ("CAM_FRONT" in filename):
+        if is_key_frame and ("__CAM_FRONT__" in filename or "__CAM_BACK__" in filename):
             front_camera_samples.append(sample)
 
-    print(f"Gefunden: {len(front_camera_samples)} Bilder von Frontkameras")
+    print(f"Gefiltert: {len(front_camera_samples)} Bilder")
     return front_camera_samples
 
 
-# filtered_samples = filter_front_camera_images(SAMPLES)
-filtered_samples = SAMPLES.copy()
+filtered_samples = filter_straight_camera_images(SAMPLES)
+# filtered_samples = SAMPLES.copy()
 
 vehicle_mapping = {
-    "vehicle.car": 2,  # Original YOLO-Klasse für car
-    "vehicle.motorcycle": 3,  # Original YOLO-Klasse für motorcycle
-    "vehicle.bus.rigid": 5,  # Original YOLO-Klasse für bus
-    "vehicle.truck": 7,  # Original YOLO-Klasse für truck
-    "vehicle.trailer": 7,  # Trailer als Truck behandeln (keine eigene Klasse in YOLO)
+    "human.pedestrian.adult": "person",
+    "vehicle.car": "vehicle.car",
+    "vehicle.motorcycle": "vehicle.motorcycle",
+    "vehicle.bus": "vehicle.bus",
+    "vehicle.truck": "vehicle.truck",
+    "vehicle.trailer": "vehicle.truck",
+    "movable_object.trafficcone": "trafficcone",
 }
+# Get class index for YOLO format
+vehicle_class_names = list(set(vehicle_mapping.values()))
+# vehicle_mapping = {
+#     "vehicle.car": 2,  # Original YOLO-Klasse für car
+#     "vehicle.motorcycle": 3,  # Original YOLO-Klasse für motorcycle
+#     "vehicle.bus.rigid": 5,  # Original YOLO-Klasse für bus
+#     "vehicle.truck": 7,  # Original YOLO-Klasse für truck
+#     "vehicle.trailer": 7,  # Trailer als Truck behandeln (keine eigene Klasse in YOLO)
+# }
 # vehicle_mapping = {
 #     "vehicle.car": 0,
 #     "vehicle.motorcycle": 1,
@@ -55,22 +67,22 @@ vehicle_mapping = {
 
 # NuImages-Kategorien laden und filtern
 categories = nuim.category
-vehicle_categories = {}
+object_categories = {}
 
 for category in categories:
     # Wenn die Kategorie in unserem Mapping ist, speichern wir ihre Token-ID
     lower_name = category["name"].lower()
     if lower_name in vehicle_mapping:
-        vehicle_categories[category["token"]] = {
+        object_categories[category["token"]] = {
             "name": lower_name,
-            "yolo_id": vehicle_mapping[lower_name],
+            "yolo_name": vehicle_mapping[lower_name],
         }
 
-print(f"Extrahierte Fahrzeugkategorien: {len(vehicle_categories)}")
-for token, info in vehicle_categories.items():
-    print(f"  - {info['name']}: (Original YOLO-ID: {info['yolo_id']})")
+print(f"Extrahierte Fahrzeugkategorien: {len(object_categories)}")
+for token, info in object_categories.items():
+    print(f"  - {info['name']}: (New YOLO-Name: {info['yolo_name']})")
 
-    annotations_by_sample = {}
+annotations_by_sample = {}
 
 for sample in tqdm(filtered_samples, desc="Extrahiere Annotationen"):
     sample_token = sample["token"]
@@ -84,7 +96,7 @@ for sample in tqdm(filtered_samples, desc="Extrahiere Annotationen"):
         category_token = ann["category_token"]
 
         # Prüfen, ob es eine Fahrzeugkategorie ist, die wir behalten wollen
-        if category_token in vehicle_categories:
+        if category_token in object_categories:
             # Bounding Box im Format [x1, y1, x2, y2] extrahieren
             bbox = ann["bbox"]
 
@@ -92,7 +104,7 @@ for sample in tqdm(filtered_samples, desc="Extrahiere Annotationen"):
             annotations_by_sample[sample_token].append(
                 {
                     "category_token": category_token,
-                    "yolo_id": vehicle_categories[category_token]["yolo_id"],
+                    "yolo_name": object_categories[category_token]["yolo_name"],
                     "bbox": bbox,
                 }
             )
@@ -129,7 +141,7 @@ recreate_dirs()
 
 # 2. Die Samples zwischen Training und Validierung aufteilen (80% / 20%)
 random.seed(42)  # Für Reproduzierbarkeit
-val_split = 0.2
+val_split = 0.15
 
 filtered_samples = SAMPLES.copy()
 random.shuffle(filtered_samples)
@@ -183,7 +195,6 @@ for dataset_type, samples in [("train", train_samples), ("val", val_samples)]:
             continue
 
         img_height, img_width = sample_data["height"], sample_data["width"]
-        # img_height, img_width = img.shape[:2]
 
         # Zielbildpfad
         dest_img_name = f"{sample_token}.jpg"
@@ -213,8 +224,9 @@ for dataset_type, samples in [("train", train_samples), ("val", val_samples)]:
         with open(output_label_dir / f"{sample_token}.txt", "w") as f:
             for ann in annotations:
                 bbox = ann["bbox"]
-                class_id = ann["yolo_id"]
+                yolo_class_name = ann["yolo_name"]
 
+                class_id = vehicle_class_names.index(yolo_class_name)
                 # Zu YOLO-Format konvertieren
                 yolo_bbox = convert_to_yolo_format(
                     bbox, img_width, img_height, class_id
@@ -231,88 +243,8 @@ yaml_content = {
     "path": os.path.abspath(output_path),
     "train": "train/images",
     "val": "val/images",
-    "names": {
-        0: "person",
-        1: "bicycle",
-        2: "car",
-        3: "motorcycle",
-        4: "airplane",
-        5: "bus",
-        6: "train",
-        7: "truck",
-        8: "boat",
-        9: "traffic light",
-        10: "fire hydrant",
-        11: "stop sign",
-        12: "parking meter",
-        13: "bench",
-        14: "bird",
-        15: "cat",
-        16: "dog",
-        17: "horse",
-        18: "sheep",
-        19: "cow",
-        20: "elephant",
-        21: "bear",
-        22: "zebra",
-        23: "giraffe",
-        24: "backpack",
-        25: "umbrella",
-        26: "handbag",
-        27: "tie",
-        28: "suitcase",
-        29: "frisbee",
-        30: "skis",
-        31: "snowboard",
-        32: "sports ball",
-        33: "kite",
-        34: "baseball bat",
-        35: "baseball glove",
-        36: "skateboard",
-        37: "surfboard",
-        38: "tennis racket",
-        39: "bottle",
-        40: "wine glass",
-        41: "cup",
-        42: "fork",
-        43: "knife",
-        44: "spoon",
-        45: "bowl",
-        46: "banana",
-        47: "apple",
-        48: "sandwich",
-        49: "orange",
-        50: "broccoli",
-        51: "carrot",
-        52: "hot dog",
-        53: "pizza",
-        54: "donut",
-        55: "cake",
-        56: "chair",
-        57: "couch",
-        58: "potted plant",
-        59: "bed",
-        60: "dining table",
-        61: "toilet",
-        62: "tv",
-        63: "laptop",
-        64: "mouse",
-        65: "remote",
-        66: "keyboard",
-        67: "cell phone",
-        68: "microwave",
-        69: "oven",
-        70: "toaster",
-        71: "sink",
-        72: "refrigerator",
-        73: "book",
-        74: "clock",
-        75: "vase",
-        76: "scissors",
-        77: "teddy bear",
-        78: "hair drier",
-        79: "toothbrush",
-    },
+    "nc": len(vehicle_class_names),
+    "names": vehicle_class_names,
 }
 
 with open(Path(output_path) / "dataset.yaml", "w") as f:
