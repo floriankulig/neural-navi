@@ -14,9 +14,9 @@ DATA_SET_PATH = "data/sets/nuimages"
 output_path = "data/nuimages_yolo"
 os.makedirs(output_path, exist_ok=True)
 
-nuim = NuImages(dataroot=DATA_SET_PATH, version="v1.0-mini", verbose=True, lazy=True)
+nuim = NuImages(dataroot=DATA_SET_PATH, version="v1.0-mini", verbose=True)
 SAMPLES = nuim.sample
-# SAMPLES = SAMPLES[:5]
+# SAMPLES = SAMPLES[:1]
 
 
 # Front-Kamera-Bilder identifizieren (für Fahrzeuge, die sich wegbewegen)
@@ -49,21 +49,7 @@ vehicle_mapping = {
     "movable_object.trafficcone": "trafficcone",
 }
 # Get class index for YOLO format
-vehicle_class_names = list(set(vehicle_mapping.values()))
-# vehicle_mapping = {
-#     "vehicle.car": 2,  # Original YOLO-Klasse für car
-#     "vehicle.motorcycle": 3,  # Original YOLO-Klasse für motorcycle
-#     "vehicle.bus.rigid": 5,  # Original YOLO-Klasse für bus
-#     "vehicle.truck": 7,  # Original YOLO-Klasse für truck
-#     "vehicle.trailer": 7,  # Trailer als Truck behandeln (keine eigene Klasse in YOLO)
-# }
-# vehicle_mapping = {
-#     "vehicle.car": 0,
-#     "vehicle.motorcycle": 1,
-#     "vehicle.bus.rigid": 2,
-#     "vehicle.truck": 3,
-#     "vehicle.trailer": 3,
-# }
+vehicle_class_names = list(dict.fromkeys(vehicle_mapping.values()))
 
 # NuImages-Kategorien laden und filtern
 categories = nuim.category
@@ -72,7 +58,7 @@ object_categories = {}
 for category in categories:
     # Wenn die Kategorie in unserem Mapping ist, speichern wir ihre Token-ID
     lower_name = category["name"].lower()
-    if lower_name in vehicle_mapping:
+    if lower_name in vehicle_mapping.keys():
         object_categories[category["token"]] = {
             "name": lower_name,
             "yolo_name": vehicle_mapping[lower_name],
@@ -80,7 +66,7 @@ for category in categories:
 
 print(f"Extrahierte Fahrzeugkategorien: {len(object_categories)}")
 for token, info in object_categories.items():
-    print(f"  - {info['name']}: (New YOLO-Name: {info['yolo_name']})")
+    print(f"{token}  - {info['name']}: (New YOLO-Name: {info['yolo_name']})")
 
 annotations_by_sample = {}
 
@@ -89,10 +75,10 @@ for sample in tqdm(filtered_samples, desc="Extrahiere Annotationen"):
     annotations_by_sample[sample_token] = []
 
     # Alle Objekt-Annotationen für dieses Sample abrufen
-    object_tokens, _ = nuim.list_anns(sample_token, verbose=False)
+    annotations, _ = nuim.list_anns(sample_token, verbose=False)
 
-    for object_token in object_tokens:
-        ann = nuim.get("object_ann", object_token)
+    for annotation_id in annotations:
+        ann = nuim.get("object_ann", annotation_id)
         category_token = ann["category_token"]
 
         # Prüfen, ob es eine Fahrzeugkategorie ist, die wir behalten wollen
@@ -109,6 +95,28 @@ for sample in tqdm(filtered_samples, desc="Extrahiere Annotationen"):
                 }
             )
 
+annotations, _ = nuim.list_anns("0b8de86ffe9740ddb3d50b5a474bc7c3", verbose=True)
+# Print object tokens in human readable format
+print(f"\nObject tokens for sample '0b8de86ffe9740ddb3d50b5a474bc7c3':")
+for i, annotation_id in enumerate(annotations):
+    ann = nuim.get("object_ann", annotation_id)
+    category_token = ann["category_token"]
+    category = nuim.get("category", category_token)
+    category_name = category["name"]
+    bbox = ann["bbox"]
+
+    # Format bounding box as [x1, y1, x2, y2]
+    bbox_str = f"[{bbox[0]:.1f}, {bbox[1]:.1f}, {bbox[2]:.1f}, {bbox[3]:.1f}]"
+
+    # Check if this category is in our mapping
+    yolo_class = "not mapped"
+    if category_token in object_categories:
+        yolo_class = object_categories[category_token]["yolo_name"]
+
+    print(f"  {i+1}. Token: {annotation_id}")
+    print(f"     Category: {category_name}")
+    print(f"     YOLO Class: {yolo_class}")
+    print(f"     Bounding Box: {bbox_str}")
 
 # 1. Erstelle die notwendigen Verzeichnisse für YOLO-Training
 train_path = Path(output_path) / "train"
@@ -171,6 +179,13 @@ def convert_to_yolo_format(bbox, img_width, img_height, class_id):
     width = (xmax - xmin) / img_width
     height = (ymax - ymin) / img_height
 
+    width_percent = width * 100
+    height_percent = height * 100
+    min_area_to_cover = 0.02  # 2% der Bildfläche
+    min_area_to_cover_percent = min_area_to_cover * 100
+    # if width_percent * height_percent < min_area_to_cover_percent**2:
+    #     return None
+
     # Normalisierte Zentrumskoordinaten
     x_center = (xmin + (xmax - xmin) / 2) / img_width
     y_center = (ymin + (ymax - ymin) / 2) / img_height
@@ -231,6 +246,10 @@ for dataset_type, samples in [("train", train_samples), ("val", val_samples)]:
                 yolo_bbox = convert_to_yolo_format(
                     bbox, img_width, img_height, class_id
                 )
+                # Wenn die Bounding Box zu klein ist, überspringen
+                # (z.B. weniger als 2% der Bildfläche)
+                if yolo_bbox is None:
+                    continue
 
                 # In Datei schreiben: class_id x_center y_center width height
                 f.write(
