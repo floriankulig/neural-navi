@@ -75,7 +75,7 @@ def process_directory_interactive(
         # Filter for vehicles (car, truck, motorcycle, bus)
         # YOLOv11 class indices: car=2, motorcycle=3, bus=5, truck=7
         vehicle_classes = [2, 3, 5, 7]
-        vehicle_classes = [0, 1, 2, 3, 4, 5, 6]  # for tuned model
+        vehicle_classes = [0, 1, 2, 3, 4, 5, 6, 7]  # for tuned model
 
         # Process results
         detections = []
