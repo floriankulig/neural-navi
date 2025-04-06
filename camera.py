@@ -41,7 +41,7 @@ class Camera:
                 sensor={"output_size": mode["size"], "bit_depth": mode["bit_depth"]},
             )
             config["controls"] = {
-                "Saturation": 1.1,
+                "Saturation": 1.05,
                 "Sharpness": 1.2,
                 # "Contrast": 1.1,
                 "AeEnable": True,
