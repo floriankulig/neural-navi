@@ -69,6 +69,7 @@ RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Vehicle classes in YOLOv11: car(2), motorcycle(3), bus(5), truck(7)
 VEHICLE_CLASSES = [2, 3, 5, 7]
+VEHICLE_CLASSES_OWN = [1, 2, 3, 4]
 
 
 def load_test_images(
@@ -137,6 +138,11 @@ def run_model_inference(
     Returns:
         Dictionary with inference results and performance metrics
     """
+    SELECTED_CLASSES = (
+        VEHICLE_CLASSES
+        if model.ckpt_path[-4:] in ["s.pt", "n.pt"]
+        else VEHICLE_CLASSES_OWN
+    )
     model_name = Path(model.ckpt_path).stem
 
     # Warm-up the model
@@ -153,7 +159,7 @@ def run_model_inference(
     total_objects = 0
     all_confidences = []
     all_class_ids = []
-    per_class_confidences = {class_id: [] for class_id in VEHICLE_CLASSES}
+    per_class_confidences = {class_id: [] for class_id in SELECTED_CLASSES}
 
     for img_path, img in tqdm(images, desc="Processing images"):
         # Start timing
@@ -180,7 +186,7 @@ def run_model_inference(
             boxes = pred.boxes
             for box in boxes:
                 cls_id = int(box.cls.item())
-                if not cls_id in VEHICLE_CLASSES:
+                if not cls_id in SELECTED_CLASSES:
                     continue
                 conf_val = box.conf.item()
                 x1, y1, x2, y2 = box.xyxy[0].tolist()
@@ -238,7 +244,7 @@ def run_model_inference(
 
     # Per-class confidence statistics
     per_class_confidence_stats = {}
-    for cls_id in VEHICLE_CLASSES:
+    for cls_id in SELECTED_CLASSES:
         confs = per_class_confidences[cls_id]
         if confs:
             per_class_confidence_stats[cls_id] = {
@@ -305,7 +311,7 @@ def run_model_inference(
         "all_inference_times": inference_times,
         "all_confidences": all_confidences,
         "all_class_ids": all_class_ids,
-        "classes": VEHICLE_CLASSES,
+        "classes": SELECTED_CLASSES,
         "detailed_results": results,
     }
 
@@ -1371,7 +1377,7 @@ def compare_models_report(summaries: List[Dict[str, Any]], save_path: Path) -> N
     plt.figure(figsize=(14, 12))
 
     # Prepare metrics for radar chart
-    metrics = ["FPS", "Obj/Image", "Confidence", "1/Time (ms)", "Std (Stability)"]
+    metrics = ["FPS", "Obj/Image", "Confidence", "1/Time (ms)", "Times Std (Stability)"]
 
     # Normalize values to 0-1 range for radar chart
     norm_fps = (
