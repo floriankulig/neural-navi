@@ -1835,7 +1835,7 @@ def main():
         "--wait-time",
         type=float,
         default=0.0,
-        help="Time to wait between inferences in seconds (default: 0.05)",
+        help="Time to wait between inferences in seconds (default: 0.0)",
     )
 
     # Run parameters
