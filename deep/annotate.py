@@ -209,10 +209,6 @@ def process_directory(recording_dir, model, device, vehicle_classes):
                 if images_per_second > 0
                 else 0
             )
-            # print(
-            #     f"Progress: {i+1}/{total_images} images processed "
-            #     f"({images_per_second:.2f} img/s, ETA: {estimated_time:.1f}s)"
-            # )
 
     # Save final annotations to CSV
     annotations_path = Path(recording_dir) / "annotations.csv"
