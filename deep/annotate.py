@@ -203,12 +203,6 @@ def process_directory(recording_dir, model, device, vehicle_classes):
             annotations_path = Path(recording_dir) / "annotations.csv"
             annotations_df.to_csv(annotations_path, index=False)
             elapsed_time = time.time() - start_time
-            images_per_second = (i + 1) / elapsed_time
-            estimated_time = (
-                (total_images - (i + 1)) / images_per_second
-                if images_per_second > 0
-                else 0
-            )
 
     # Save final annotations to CSV
     annotations_path = Path(recording_dir) / "annotations.csv"
