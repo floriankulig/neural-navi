@@ -7,13 +7,9 @@ This script automatically annotates images in recording folders using a YOLO mod
 and saves annotations to CSV files. It supports class-specific confidence thresholds.
 """
 
-from email.mime import image
-import os
 import sys
-from tabnanny import verbose
 import time
 import pandas as pd
-import numpy as np
 from pathlib import Path
 from tqdm import tqdm
 import cv2
