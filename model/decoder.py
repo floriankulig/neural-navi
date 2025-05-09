@@ -1,5 +1,5 @@
 # ====================================
-# OutputDecoder Implementierungen
+# OutputDecoder Implementations
 # ====================================
 
 
@@ -11,19 +11,19 @@ from typing import Dict, List
 
 class LSTMOutputDecoder(OutputDecoder):
     """
-    Output-Decoder mit LSTM-Architektur für Sequenzverarbeitung.
+    Output decoder with LSTM architecture for sequence processing.
 
-    Verarbeitet die fusionierten Features durch ein LSTM-Netzwerk und
-    leitet daraus Vorhersagen für verschiedene Zeithorizonte ab.
+    Processes the fused features through an LSTM network and
+    derives predictions for various time horizons.
 
     Args:
-        input_dim (int): Dimensionalität der Eingabe-Features
-        hidden_dim (int): Dimensionalität der LSTM-Hidden-States
-        num_layers (int): Anzahl der LSTM-Schichten
-        dropout_prob (float): Dropout-Wahrscheinlichkeit
-        prediction_horizons (List[int]): Liste der Zeithorizonte für Prädiktionen
-        include_brake_force (bool): Ob eine Regression für die Bremskraft durchgeführt werden soll
-        include_uncertainty (bool): Ob eine Unsicherheitsschätzung durchgeführt werden soll
+        input_dim (int): Dimensionality of the input features
+        hidden_dim (int): Dimensionality of the LSTM hidden states
+        num_layers (int): Number of LSTM layers
+        dropout_prob (float): Dropout probability
+        prediction_horizons (List[int]): List of time horizons for predictions
+        include_brake_force (bool): Whether to perform regression for brake force
+        include_uncertainty (bool): Whether to perform uncertainty estimation
     """
 
     def __init__(
@@ -42,7 +42,7 @@ class LSTMOutputDecoder(OutputDecoder):
         self.include_brake_force = include_brake_force
         self.include_uncertainty = include_uncertainty
 
-        # LSTM für Sequenzverarbeitung
+        # LSTM for sequence processing
         self.lstm = nn.LSTM(
             input_size=input_dim,
             hidden_size=hidden_dim,
@@ -52,7 +52,7 @@ class LSTMOutputDecoder(OutputDecoder):
             bidirectional=False,
         )
 
-        # Binäre Prädiktionsköpfe für verschiedene Zeithorizonte
+        # Binary prediction heads for different time horizons
         self.binary_heads = nn.ModuleDict(
             {
                 f"horizon_{horizon}s": nn.Sequential(
@@ -65,58 +65,58 @@ class LSTMOutputDecoder(OutputDecoder):
             }
         )
 
-        # Optional: Regressionskopf für Bremskraft
+        # Optional: Regression head for brake force
         if include_brake_force:
             self.brake_force_head = nn.Sequential(
                 nn.Linear(hidden_dim, hidden_dim // 2),
                 nn.ReLU(),
                 nn.Dropout(dropout_prob),
                 nn.Linear(hidden_dim // 2, 1),
-                nn.Sigmoid(),  # Bremskraft im Bereich [0, 1]
+                nn.Sigmoid(),  # Brake force in range [0, 1]
             )
 
-        # Optional: Unsicherheitsschätzung
+        # Optional: Uncertainty estimation
         if include_uncertainty:
             self.uncertainty_head = nn.Sequential(
                 nn.Linear(hidden_dim, hidden_dim // 2),
                 nn.ReLU(),
                 nn.Linear(hidden_dim // 2, 1),
-                nn.Softplus(),  # Stellt positive Unsicherheitswerte sicher
+                nn.Softplus(),  # Ensures positive uncertainty values
             )
 
     def forward(self, fused_features: torch.Tensor) -> Dict[str, torch.Tensor]:
         """
-        Forward-Pass durch den LSTMOutputDecoder.
+        Forward pass through the LSTMOutputDecoder.
 
         Args:
-            fused_features (torch.Tensor): Fusionierte Features
+            fused_features (torch.Tensor): Fused features
                 Shape: (batch_size, seq_len, input_dim)
 
         Returns:
-            dict: Dictionary mit Vorhersagen für die verschiedenen Aufgaben
-                Für jeden Zeithorizont in prediction_horizons:
+            dict: Dictionary with predictions for different tasks
+                For each horizon in prediction_horizons:
                 "binary_{horizon}s": (batch_size, 1)
 
                 Optional:
                 "brake_force": (batch_size, 1)
                 "uncertainty": (batch_size, 1)
         """
-        # LSTM-Verarbeitung
+        # LSTM processing
         lstm_out, (lstm_h_n, _) = self.lstm(fused_features)
-        final_state = lstm_h_n[-1]  # Letzter Hidden State
+        final_state = lstm_h_n[-1]  # Last hidden state
 
-        # Prädiktionen für verschiedene Zeithorizonte
+        # Predictions for various time horizons
         predictions = {}
         for horizon in self.prediction_horizons:
             predictions[f"binary_{horizon}s"] = self.binary_heads[
                 f"horizon_{horizon}s"
             ](final_state)
 
-        # Optional: Bremskraft-Regression
+        # Optional: Brake force regression
         if self.include_brake_force:
             predictions["brake_force"] = self.brake_force_head(final_state)
 
-        # Optional: Unsicherheitsschätzung
+        # Optional: Uncertainty estimation
         if self.include_uncertainty:
             predictions["uncertainty"] = self.uncertainty_head(final_state)
 
@@ -125,20 +125,20 @@ class LSTMOutputDecoder(OutputDecoder):
 
 class TransformerOutputDecoder(OutputDecoder):
     """
-    Output-Decoder mit Transformer-Architektur für Sequenzverarbeitung.
+    Output decoder with Transformer architecture for sequence processing.
 
-    Verarbeitet die fusionierten Features durch Transformer-Encoder-Layer und
-    leitet daraus Vorhersagen für verschiedene Zeithorizonte ab.
+    Processes the fused features through Transformer encoder layers and
+    derives predictions for various time horizons.
 
     Args:
-        input_dim (int): Dimensionalität der Eingabe-Features
-        hidden_dim (int): Dimensionalität der internen Repräsentation
-        num_heads (int): Anzahl der Attention-Heads
-        num_layers (int): Anzahl der Transformer-Encoder-Schichten
-        dropout_prob (float): Dropout-Wahrscheinlichkeit
-        prediction_horizons (List[int]): Liste der Zeithorizonte für Prädiktionen
-        include_brake_force (bool): Ob eine Regression für die Bremskraft durchgeführt werden soll
-        include_uncertainty (bool): Ob eine Unsicherheitsschätzung durchgeführt werden soll
+        input_dim (int): Dimensionality of the input features
+        hidden_dim (int): Dimensionality of the internal representation
+        num_heads (int): Number of attention heads
+        num_layers (int): Number of transformer encoder layers
+        dropout_prob (float): Dropout probability
+        prediction_horizons (List[int]): List of time horizons for predictions
+        include_brake_force (bool): Whether to perform regression for brake force
+        include_uncertainty (bool): Whether to perform uncertainty estimation
     """
 
     def __init__(
@@ -158,7 +158,7 @@ class TransformerOutputDecoder(OutputDecoder):
         self.include_brake_force = include_brake_force
         self.include_uncertainty = include_uncertainty
 
-        # Lineares Mapping auf hidden_dim, falls input_dim nicht übereinstimmt
+        # Linear mapping to hidden_dim if input_dim doesn't match
         self.input_projection = (
             nn.Linear(input_dim, hidden_dim)
             if input_dim != hidden_dim
@@ -178,7 +178,7 @@ class TransformerOutputDecoder(OutputDecoder):
             encoder_layer=encoder_layer, num_layers=num_layers
         )
 
-        # Binäre Prädiktionsköpfe für verschiedene Zeithorizonte
+        # Binary prediction heads for different time horizons
         self.binary_heads = nn.ModuleDict(
             {
                 f"horizon_{horizon}s": nn.Sequential(
@@ -191,63 +191,63 @@ class TransformerOutputDecoder(OutputDecoder):
             }
         )
 
-        # Optional: Regressionskopf für Bremskraft
+        # Optional: Regression head for brake force
         if include_brake_force:
             self.brake_force_head = nn.Sequential(
                 nn.Linear(hidden_dim, hidden_dim // 2),
                 nn.ReLU(),
                 nn.Dropout(dropout_prob),
                 nn.Linear(hidden_dim // 2, 1),
-                nn.Sigmoid(),  # Bremskraft im Bereich [0, 1]
+                nn.Sigmoid(),  # Brake force in range [0, 1]
             )
 
-        # Optional: Unsicherheitsschätzung
+        # Optional: Uncertainty estimation
         if include_uncertainty:
             self.uncertainty_head = nn.Sequential(
                 nn.Linear(hidden_dim, hidden_dim // 2),
                 nn.ReLU(),
                 nn.Linear(hidden_dim // 2, 1),
-                nn.Softplus(),  # Stellt positive Unsicherheitswerte sicher
+                nn.Softplus(),  # Ensures positive uncertainty values
             )
 
     def forward(self, fused_features: torch.Tensor) -> Dict[str, torch.Tensor]:
         """
-        Forward-Pass durch den TransformerOutputDecoder.
+        Forward pass through the TransformerOutputDecoder.
 
         Args:
-            fused_features (torch.Tensor): Fusionierte Features
+            fused_features (torch.Tensor): Fused features
                 Shape: (batch_size, seq_len, input_dim)
 
         Returns:
-            dict: Dictionary mit Vorhersagen für die verschiedenen Aufgaben
-                Für jeden Zeithorizont in prediction_horizons:
+            dict: Dictionary with predictions for different tasks
+                For each horizon in prediction_horizons:
                 "binary_{horizon}s": (batch_size, 1)
 
                 Optional:
                 "brake_force": (batch_size, 1)
                 "uncertainty": (batch_size, 1)
         """
-        # Projektion auf hidden_dim, falls notwendig
+        # Projection to hidden_dim if necessary
         features = self.input_projection(fused_features)
 
-        # Transformer-Verarbeitung
+        # Transformer processing
         transformer_out = self.transformer_encoder(features)
 
-        # Verwende den letzten Token der Sequenz für die Vorhersagen
+        # Use the last token of the sequence for predictions
         final_state = transformer_out[:, -1]
 
-        # Prädiktionen für verschiedene Zeithorizonte
+        # Predictions for various time horizons
         predictions = {}
         for horizon in self.prediction_horizons:
             predictions[f"binary_{horizon}s"] = self.binary_heads[
                 f"horizon_{horizon}s"
             ](final_state)
 
-        # Optional: Bremskraft-Regression
+        # Optional: Brake force regression
         if self.include_brake_force:
             predictions["brake_force"] = self.brake_force_head(final_state)
 
-        # Optional: Unsicherheitsschätzung
+        # Optional: Uncertainty estimation
         if self.include_uncertainty:
             predictions["uncertainty"] = self.uncertainty_head(final_state)
 
