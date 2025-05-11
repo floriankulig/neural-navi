@@ -5,7 +5,6 @@ Enhanced YOLO Model Benchmark
 This script compares the inference performance of different YOLO models with scientific-grade metrics.
 """
 
-import os
 import sys
 import time
 import argparse
@@ -13,7 +12,6 @@ import json
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mtick
 import seaborn as sns
 from pathlib import Path
 import cv2
@@ -21,7 +19,6 @@ from tqdm import tqdm
 import yaml
 from datetime import datetime
 from scipy import stats
-import matplotlib.colors as mcolors
 from typing import Dict, List, Tuple, Optional, Any, Union
 
 # Add parent directory to path for imports from main project
