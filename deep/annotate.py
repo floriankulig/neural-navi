@@ -39,6 +39,7 @@ MODEL_IMG_SIZE = 640  # Image size for YOLO model
 # Path settings
 RECORDINGS_PATH = "deep/data/recordings"  # Path to recordings folder
 RESULTS_PATH = "deep/data/annotations"  # Path to save results
+SHOULD_CROP = True  # Whether to crop images to ROI
 
 SAVE_PROGRESS_INTERVAL = 100  # Save progress every 50 images
 
@@ -52,6 +53,17 @@ CLASS_CONFIG = {
     3: {"name": "vehicle.motorcycle", "confidence": 0.3},
     4: {"name": "vehicle.bus", "confidence": 0.3},
     5: {"name": "trafficcone", "confidence": 0.3},
+}
+
+# We use these custom ROIs because for each recording, the camera angle differs a slight bit.
+# This ensures that the region of interest matches the relevant area in each dataset.
+RECORDINGS_ROIS_MAP = {
+    # Example: "recording_name": [x1, y1, width, height]
+    "2024-12-19_11-50-15": (0, 320, 1920, 575),
+    "2024-12-19_12-58-38": (0, 320, 1920, 575),
+    "2025-04-03_19-33-31": (0, 256, 1920, 575),
+    "2025-04-03_21-05-24": (0, 240, 1920, 575),
+    "2025-04-03_21-53-03": (0, 245, 1920, 575),
 }
 
 
@@ -89,7 +101,7 @@ def get_recording_dirs(recordings_path=RECORDINGS_PATH):
     return recording_dirs
 
 
-def process_directory(recording_dir, model, device, vehicle_classes):
+def process_directory(recording_dir, model, device, vehicle_classes, crops=True):
     """
     Process all images in the given directory using the YOLO model
     and save annotations to a CSV file.
@@ -105,7 +117,15 @@ def process_directory(recording_dir, model, device, vehicle_classes):
     """
     # Get all jpg files in the directory
     image_files = sorted(list(Path(recording_dir).glob("*.jpg")))
-    # image_files = image_files[:10]  # For testing, process only the first 10 images
+    # image_files = image_files[:5]  # For testing, process only the first 10 images
+
+    telemetry_timestamps = pd.read_csv(recording_dir / "telemetry.csv")["Time"].astype(
+        str
+    )
+    telemetry_timestamps = list(
+        pd.read_csv(recording_dir / "telemetry.csv")["Time"].astype(str)
+    )
+    print(f"Found {len(telemetry_timestamps)} timestamps in {recording_dir}")
 
     if not image_files:
         print(f"No jpg files found in {recording_dir}")
@@ -142,9 +162,21 @@ def process_directory(recording_dir, model, device, vehicle_classes):
             print(f"Failed to read image: {img_path}")
             continue
 
+        if timestamp not in telemetry_timestamps:
+            print(f"Timestamp {timestamp} not found in telemetry.csv")
+            continue
+
         # Convert BGR to RGB and crop to ROI
         # img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) # images are already saved in RGB
-        img_cropped = ImageProcessor.crop_to_roi(img, DEFAULT_IMAGE_ROI)
+        if crops:
+            roi_for_recording = RECORDINGS_ROIS_MAP.get(recording_dir.name, None)
+            img_cropped = ImageProcessor.crop_to_roi(img, roi_for_recording)
+        else:
+            img_cropped = img.copy()
+
+        if img_cropped is None:
+            print(f"Failed to crop image: {img_path}")
+            continue
 
         # Run detection with base confidence (we'll filter by class-specific confidence later)
         # Use lowest confidence threshold from CLASS_CONFIG to catch all potential detections
@@ -241,7 +273,7 @@ def main():
         )
         # Copy telemetry.csv and annotations.csv to the results directory
         annotations_path = process_directory(
-            recording_dir, model, device, vehicle_classes
+            recording_dir, model, device, vehicle_classes, crops=SHOULD_CROP
         )
         telemetry_path = recording_dir / "telemetry.csv"
 
