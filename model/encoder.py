@@ -200,7 +200,7 @@ class AttentionInputEncoder(InputEncoder):
             embed_dim=embedding_dim,
             num_heads=attention_num_heads,
             dropout=dropout_prob,
-            batch_first=True,
+            batch_first=False,
         )
 
         # LayerNorms for residual connections
