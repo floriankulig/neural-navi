@@ -3,8 +3,7 @@
 # ====================================
 
 
-from ast import Dict
-from typing import Any
+from typing import Any, Dict
 from model.decoder import LSTMOutputDecoder, TransformerOutputDecoder
 from model.encoder import AttentionInputEncoder, SimpleInputEncoder
 from model.fusion import CrossModalAttentionFusion, SimpleConcatenationFusion
