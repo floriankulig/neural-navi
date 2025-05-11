@@ -26,11 +26,11 @@ if __name__ == "__main__":
         "decoder_num_layers": 2,
         "dropout_prob": 0.3,
         # Spezifische Parameter
-        "prediction_horizons": [1, 3, 5],  # Zeithorizonte in Sekunden
+        "prediction_horizons": [1, 2, 4],  # Zeithorizonte in Sekunden
         "include_brake_force": True,
         "include_uncertainty": True,
         "bidirectional_fusion": False,
-        "max_detections": 10,
+        "max_detections": 12,
         "max_seq_length": 20,
     }
 
