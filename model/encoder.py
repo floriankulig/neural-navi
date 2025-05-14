@@ -88,7 +88,7 @@ class SimpleInputEncoder(InputEncoder):
         **kwargs,
     ) -> Dict[str, torch.Tensor]:
         """
-        Forward pass through the SimpleInputEncoder.
+        Forward pass through the SimpleInputEncoder without object aggregation.
 
         Args:
           telemetry_seq (torch.Tensor): Telemetry sequence data
@@ -101,7 +101,8 @@ class SimpleInputEncoder(InputEncoder):
         Returns:
           dict: Dictionary with encoded features
             "telemetry_features": (batch_size, seq_len, embedding_dim)
-            "detection_features": (batch_size, seq_len, embedding_dim)
+            "detection_features": (batch_size, seq_len, max_detections, embedding_dim)
+            "detection_mask": (batch_size, seq_len, max_detections)
         """
         batch_size, seq_len, _ = telemetry_seq.shape
         _, _, max_dets, det_feat_dim = detection_seq.shape
@@ -124,17 +125,14 @@ class SimpleInputEncoder(InputEncoder):
             batch_size, seq_len, max_dets, self.embedding_dim
         )
 
-        # Aggregation of detections per time step (weighted average)
-        valid_detections = detection_mask.unsqueeze(-1).float()
-        detection_sum = (embedded_detections * valid_detections).sum(dim=2)
-        detection_count = valid_detections.sum(dim=2) + 1e-6  # Avoids division by zero
-        detection_aggregated = detection_sum / detection_count
+        # Apply LayerNorm on the embedding dimension (last dimension)
+        embedded_detections = self.norm_detections(embedded_detections)
 
-        detection_aggregated = self.norm_detections(detection_aggregated)
-
+        # No aggregation - return individual object embeddings
         return {
             "telemetry_features": telemetry_embedded,
-            "detection_features": detection_aggregated,
+            "detection_features": embedded_detections,
+            "detection_mask": detection_mask,
         }
 
 
@@ -237,7 +235,7 @@ class AttentionInputEncoder(InputEncoder):
         **kwargs,
     ) -> Dict[str, torch.Tensor]:
         """
-        Forward pass through the AttentionInputEncoder.
+        Forward pass through the AttentionInputEncoder without object aggregation.
 
         Args:
           telemetry_seq (torch.Tensor): Telemetry sequence data
@@ -250,7 +248,8 @@ class AttentionInputEncoder(InputEncoder):
         Returns:
           dict: Dictionary with encoded features
             "telemetry_features": (batch_size, seq_len, embedding_dim)
-            "detection_features": (batch_size, seq_len, embedding_dim)
+            "detection_features": (batch_size, seq_len, max_detections, embedding_dim)
+            "detection_mask": (batch_size, seq_len, max_detections)
             "attention_weights": Optional - Dictionary with attention weights
         """
         batch_size, seq_len, _ = telemetry_seq.shape
@@ -328,17 +327,14 @@ class AttentionInputEncoder(InputEncoder):
         if store_attentions:
             attention_weights["object_self_attention"] = object_attn_weights
 
-        # Aggregation of detections (with attention) per time step
-        valid_detections = detection_mask.unsqueeze(-1).float()
-        detection_sum = (objects_attended * valid_detections).sum(dim=2)
-        detection_count = valid_detections.sum(dim=2) + 1e-6  # Avoids division by zero
-        detection_aggregated = detection_sum / detection_count
+        # Apply LayerNorm on the embedding dimension (last dimension)
+        objects_attended = self.norm_objects_attended(objects_attended)
 
-        detection_aggregated = self.norm_objects_attended(detection_aggregated)
-
+        # No aggregation - return individual object features
         result = {
             "telemetry_features": telemetry_attended,
-            "detection_features": detection_aggregated,
+            "detection_features": objects_attended,
+            "detection_mask": detection_mask,
         }
 
         if store_attentions:
