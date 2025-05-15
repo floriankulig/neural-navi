@@ -47,7 +47,7 @@ class Camera:
             )
             config["controls"] = {
                 "Saturation": 1.05,
-                "Sharpness": 1.2,
+                "Sharpness": 1.15,
                 # "Contrast": 1.1,
                 "AeEnable": True,
                 # "FrameRate": 30,
