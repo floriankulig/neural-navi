@@ -15,6 +15,7 @@ metrics/*/*.csv
 
 deep/*data*
 deep/nuimage*
+deep/boxy_raw
 deep/runs
 deep/*.pt
 
