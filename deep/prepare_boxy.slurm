@@ -1,19 +1,27 @@
 #!/bin/bash
-#SBATCH --job-name=DEIN_USERNAME_boxy_prepare
-#SBATCH --partition=cpu  # CPU-Partition für I/O-intensive Tasks
-#SBATCH --cpus-per-task=4  # Moderate CPU-Anzahl für Downloads/Extraktion
-#SBATCH --mem=8G  # Ausreichend Memory für JSON-Verarbeitung
-#SBATCH --time=02:00:00  # 2 Stunden sollten ausreichen
-#SBATCH --output=slurm-boxy-prepare-%j.out
-#SBATCH --error=slurm-boxy-prepare-%j.err
+#SBATCH --job-name=inf22086_boxy_prepare  # Ersetze #USERNAME mit deinem LDAP-Namen
+#SBATCH --gres=gpu:1                        # Keine GPUs anfordern für CPU-Task
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
+#SBATCH --time=04:00:00
+#SBATCH --output=boxy_prepare-%j.out
+#SBATCH --error=boxy_prepare-%j.err
 
-# Wechsle in das richtige Verzeichnis
-cd ~/neural-navi/deep/
+# Erstelle virtuelle Umgebung falls nicht vorhanden
+if [ ! -d "venv" ]; then
+    python3 -m venv venv
+fi
 
-# Python-Umgebung laden (falls nötig)
-# module load python/3.10
+# Aktiviere virtuelle Umgebung
+source venv/bin/activate
 
-# Skript ausführen
+# Installiere Requirements falls nötig
+# pip install -r ../requirements.txt
+
+# Führe das Skript aus
 srun python3 boxy_prepare.py
 
-echo "Boxy dataset preparation completed!"
+# Deaktiviere virtuelle Umgebung
+deactivate
+
+echo "Boxy dataset preparation completed successfully!"
