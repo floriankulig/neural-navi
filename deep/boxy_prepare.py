@@ -46,6 +46,18 @@ sunny_sequences = [
     "2016-10-26-13-00-25",
     "2016-10-26-13-04-33",
 ]
+more_sequences = [
+    "2016-10-26-17-55-06",
+    "2016-10-26-17-57-22",
+    "2016-10-26-18-03-11",
+    "2016-10-30-10-01-47",
+    "2016-10-30-10-04-51",
+    "2016-10-30-10-24-32",
+    "2016-11-01-10-07-39",
+    "2016-11-01-10-20-23",
+]
+sunny_sequences = sunny_sequences + more_sequences
+sunny_sequences = list(set(sunny_sequences))  # filter doubles if any
 # sunny_sequences = [
 #     "2016-10-10-16-00-11",
 # ]
