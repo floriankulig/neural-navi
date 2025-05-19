@@ -10,11 +10,13 @@ from threading import Lock
 import time
 
 USE_SIDE_DETECTION = True
+nc = 3 if USE_SIDE_DETECTION else 1
+classes = ['vehicle.left', 'vehicle.front', 'vehicle.right'] if USE_SIDE_DETECTION else ['vehicle']
 
 # Define directories
 data_dir = "data"
 boxy_raw_dir = "boxy_raw"
-yolo_dir = os.path.join(data_dir, f"boxy_yolo_n{3 if USE_SIDE_DETECTION else 1}")
+yolo_dir = os.path.join(data_dir, f"boxy_yolo_n{nc}")
 train_images_dir = os.path.join(yolo_dir, "train", "images")
 train_labels_dir = os.path.join(yolo_dir, "train", "labels")
 val_images_dir = os.path.join(yolo_dir, "val", "images")
@@ -447,8 +449,8 @@ for set_type, images in [("train", train_images), ("val", val_images)]:
 yaml_content = f"""\
 train: {train_images_dir}
 val: {val_images_dir}
-nc: 1
-names: ['vehicle']
+nc: {str(nc)}
+names: {str(classes)}
 """
 yaml_path = os.path.join(data_dir, "dataset.yaml")
 with open(yaml_path, "w") as f:
