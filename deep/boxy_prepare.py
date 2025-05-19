@@ -452,7 +452,7 @@ val: {val_images_dir}
 nc: {str(nc)}
 names: {str(classes)}
 """
-yaml_path = os.path.join(data_dir, "dataset.yaml")
+yaml_path = os.path.join(data_dir, f"dataset_nc{nc}.yaml")
 with open(yaml_path, "w") as f:
     f.write(yaml_content)
 
