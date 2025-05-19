@@ -21,6 +21,8 @@ deep/*.pt
 deep/*.err
 deep/*.out
 
+/runs
+
 # Models
 best_*.pt
 

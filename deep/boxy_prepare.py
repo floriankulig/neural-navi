@@ -447,8 +447,8 @@ for set_type, images in [("train", train_images), ("val", val_images)]:
 
 # Create dataset.yaml
 yaml_content = f"""\
-train: {train_images_dir}
-val: {val_images_dir}
+train: {os.path.abspath(train_images_dir)}
+val: {os.path.abspath(val_images_dir)}
 nc: {str(nc)}
 names: {str(classes)}
 """
