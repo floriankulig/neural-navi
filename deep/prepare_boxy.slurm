@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name=inf22086_boxy_prepare  # Ersetze #USERNAME mit deinem LDAP-Namen
-#SBATCH --gres=gpu:1                        # Keine GPUs anfordern für CPU-Task
+#SBATCH --gres=gpu:0                        # Keine GPUs anfordern für CPU-Task
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=16G
-#SBATCH --time=04:00:00
+#SBATCH --mem=32G
+#SBATCH --time=06:00:00
 #SBATCH --output=boxy_prepare-%j.out
 #SBATCH --error=boxy_prepare-%j.err
 

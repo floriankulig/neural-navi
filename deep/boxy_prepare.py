@@ -4,6 +4,7 @@ import json
 import random
 import shutil
 import subprocess
+import zipfile
 
 # Define directories
 data_dir = "data"
@@ -30,6 +31,8 @@ for dir_path in [
     val_images_dir,
     val_labels_dir,
 ]:
+    if "val" in dir_path or "train" in dir_path:
+        shutil.rmtree(dir_path)
     os.makedirs(dir_path, exist_ok=True)
 
 # List of sunny sequences from the screenshot (task 1)
@@ -62,34 +65,50 @@ more_sequences = [
 ]
 sunny_sequences = sunny_sequences + more_sequences
 sunny_sequences = list(set(sunny_sequences))  # filter doubles if any
-# sunny_sequences = [
-#     "2016-10-10-16-00-11",
-# ]
 
+BOXY_SERVER = "http://5.9.71.146/dqrtq7zmfsr4q59crcya"
 # Base URL for downloading batches (replace with updated URL)
-base_url = (
-    "http://5.9.71.146/dqrtq7zmfsr4q59crcya/boxy_raw_scaled/bluefox_{sequence}_bag.zip"
-)
-json_url = "http://5.9.71.146/dqrtq7zmfsr4q59crcya/boxy_labels_train.json"  # Replace with updated URL
-# json_url = "http://5.9.71.146/dqrtq7zmfsr4q59crcya/boxy_labels_valid.json"  # Replace with updated URL
+base_url = BOXY_SERVER + "/boxy_raw_scaled/bluefox_{sequence}_bag.zip"
+json_url = BOXY_SERVER + "/boxy_labels_train.json"  # Replace with updated URL
+# json_url = BOXY_SERVER + "/boxy_labels_valid.json"  # Replace with updated URL
 
 # Download Boxy-Zip Batches (task 1)
 for sequence in sunny_sequences:
     url = base_url.format(sequence=sequence)
     zip_file = os.path.join(boxy_raw_dir, f"bluefox_{sequence}.zip")
     # subprocess.run(["wget", url, "-O", zip_file], check=True)
-    subprocess.run(["curl", url, "-o", zip_file], check=True)
+    subprocess.run(["curl", "-L", url, "-o", zip_file], check=True)
 
 # Download Boxy labels JSON (task 2)
 json_path = os.path.join(data_dir, "boxy_labels.json")
 # subprocess.run(["wget", json_url, "-O", json_path], check=True)
-subprocess.run(["curl", json_url, "-o", json_path], check=True)
+subprocess.run(["curl", "-L", json_url, "-o", json_path], check=True)
 
-# # Extract zip files into boxy_raw
+# Extract zip files into boxy_raw using Python's zipfile
+print("Extracting ZIP files...")
 for zip_file in os.listdir(boxy_raw_dir):
     if zip_file.endswith(".zip"):
         zip_path = os.path.join(boxy_raw_dir, zip_file)
-        subprocess.run(["unzip", "-o", zip_path, "-d", boxy_raw_dir], check=True)
+        print(f"Extracting {zip_file}...")
+
+        try:
+            with zipfile.ZipFile(zip_path, "r") as zip_ref:
+                # Extract with progress indication for large files
+                members = zip_ref.namelist()
+                print(f"  Found {len(members)} files in archive")
+                zip_ref.extractall(boxy_raw_dir)
+            print(f"Successfully extracted {zip_file}")
+
+            # Optional: Remove ZIP file after extraction to save space
+            os.remove(zip_path)
+            print(f"Removed {zip_file} to save space")
+
+        except zipfile.BadZipFile:
+            print(f"Warning: {zip_file} appears to be corrupted, skipping...")
+            continue
+        except Exception as e:
+            print(f"Error extracting {zip_file}: {e}")
+            continue
 
 # Load the JSON file
 with open(json_path, "r") as f:
@@ -105,6 +124,10 @@ for image_path, annotation in labels.items():
             print(f"Deleted corrupted image: {full_image_path}")
     else:
         valid_images.append(image_path)
+
+print(
+    f"{len(valid_images)}/{len(labels)} images without annotation flaws ({(len(valid_images)/len(labels) * 100)}%)"
+)
 
 # Shuffle and split into train and val sets (80% train, 20% val)
 random.shuffle(valid_images)
