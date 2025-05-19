@@ -5,7 +5,7 @@
 #SBATCH --mem=32G
 #SBATCH --time=06:00:00
 #SBATCH --output=boxy_prepare-%j.out
-#SBATCH --error=boxy_prepare-%j.err
+#SBATCH --error=boxy_prepare-%j.out
 
 # Erstelle virtuelle Umgebung falls nicht vorhanden
 if [ ! -d "venv" ]; then

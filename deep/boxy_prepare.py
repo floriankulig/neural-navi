@@ -288,6 +288,76 @@ def download_boxy_files_parallel():
     return {"results": results, "summary": final_status, "total_time": total_time}
 
 
+def determine_vehicle_class(vehicle, img_width):
+    """
+    Determine vehicle class based on relationship between rear and AABB bounding boxes.
+    
+    Strategy:
+    1. If rear == AABB (or very similar): vehicle is directly in front (vehicle.front)
+    2. If AABB extends more to the left than right compared to rear: vehicle.left
+    3. Otherwise: vehicle.right
+    
+    The logic is based on:
+    - rear bbox: shows only the visible rear part of the vehicle
+    - AABB bbox: shows the complete vehicle bounding box
+    - If they're similar, we see the vehicle from behind (front)
+    - If AABB is larger, we see the vehicle at an angle, and the direction 
+      of extension tells us if it's to our left or right
+    
+    Returns:
+        int: 0 (left), 1 (front), 2 (right), or None if no valid bbox
+    """
+    rear_bbox = vehicle.get("rear") if "rear" in vehicle else None
+    aabb_bbox = vehicle.get("AABB") if "AABB" in vehicle else None
+    
+    # Need both bounding boxes for proper classification
+    if rear_bbox is None or aabb_bbox is None:
+        # Fallback: if only one bbox available, classify based on position in image
+        bbox = rear_bbox if rear_bbox is not None else aabb_bbox
+        if bbox is None:
+            return None
+        
+        center_x = (bbox["x1"] + bbox["x2"]) / 2
+        norm_center_x = center_x / img_width
+        
+        # Simple position-based classification as fallback
+        if norm_center_x < 0.33:
+            return 0  # vehicle.left
+        elif norm_center_x > 0.66:
+            return 2  # vehicle.right
+        else:
+            return 1  # vehicle.front
+    
+    # Check if rear and AABB are approximately equal (vehicle directly in front)
+    # Allow for small differences due to annotation variations
+    x1_diff = abs(aabb_bbox["x1"] - rear_bbox["x1"])
+    x2_diff = abs(aabb_bbox["x2"] - rear_bbox["x2"])
+    y1_diff = abs(aabb_bbox["y1"] - rear_bbox["y1"])
+    y2_diff = abs(aabb_bbox["y2"] - rear_bbox["y2"])
+    
+    # Threshold for considering bboxes as "equal" (in pixels)
+    equality_threshold = 20  # pixels
+    
+    if (x1_diff <= equality_threshold and x2_diff <= equality_threshold and 
+        y1_diff <= equality_threshold and y2_diff <= equality_threshold):
+        return 1  # vehicle.front
+    
+    # Calculate how much AABB extends beyond rear on each side
+    left_extension = rear_bbox["x1"] - aabb_bbox["x1"]  # positive if AABB extends left
+    right_extension = aabb_bbox["x2"] - rear_bbox["x2"]  # positive if AABB extends right
+    left_extension = max(0, left_extension)
+    right_extension = max(0, right_extension)
+    
+    # Classify based on which direction has greater extension
+    # We "see" the left side of the vehicle, so its right of us
+    if left_extension > right_extension:
+        return 2  # vehicle.right
+    elif right_extension > left_extension:
+        return 0 # vehicle.left
+    else:
+        return 1  # vehicle.front
+
+
 # Download Boxy-Zip Batches in parallel (task 1)
 download_results = download_boxy_files_parallel()
 
@@ -376,6 +446,9 @@ print(f"\nProcessing dataset split:")
 print(f"  Training images: {len(train_images)}")
 print(f"  Validation images: {len(val_images)}")
 
+# Statistics for class distribution
+class_counts = {'train': [0, 0, 0], 'val': [0, 0, 0]}  # [left, front, right]
+
 # Process each set
 for set_type, images in [("train", train_images), ("val", val_images)]:
     dest_image_dir = train_images_dir if set_type == "train" else val_images_dir
@@ -394,7 +467,18 @@ for set_type, images in [("train", train_images), ("val", val_images)]:
         annotation = labels[image_path]
         annotation_lines = []
         corrupt_annotations_in_image = False
+        
         for vehicle in annotation["vehicles"]:
+            # Determine vehicle class based on position
+            if USE_SIDE_DETECTION:
+                vehicle_class = determine_vehicle_class(vehicle, img_width)
+                if vehicle_class is None:
+                    corrupt_annotations_in_image = True
+                    break
+            else:
+                vehicle_class = 0  # Single class for all vehicles
+            
+            # Get bounding box for YOLO format (prefer rear, fallback to AABB)
             if "rear" in vehicle and vehicle["rear"] is not None:
                 bbox = vehicle["rear"]
             elif "AABB" in vehicle and vehicle["AABB"] is not None:
@@ -402,11 +486,14 @@ for set_type, images in [("train", train_images), ("val", val_images)]:
             else:
                 corrupt_annotations_in_image = True
                 break
+                
             x1, y1, x2, y2 = bbox["x1"], bbox["y1"], bbox["x2"], bbox["y2"]
+            
             # Skip invalid bounding boxes
             if x1 >= x2 or y1 >= y2:
                 corrupt_annotations_in_image = True
                 break
+                
             box_width = x2 - x1
             box_height = y2 - y1
             center_x = (x1 + x2) / 2
@@ -424,8 +511,12 @@ for set_type, images in [("train", train_images), ("val", val_images)]:
                 and 0 <= norm_height <= 1
             ):
                 annotation_lines.append(
-                    f"0 {norm_center_x} {norm_center_y} {norm_width} {norm_height}"
+                    f"{vehicle_class} {norm_center_x} {norm_center_y} {norm_width} {norm_height}"
                 )
+                
+                # Update class statistics
+                if USE_SIDE_DETECTION:
+                    class_counts[set_type][vehicle_class] += 1
 
         # If there is a vehicle where no valid bounding-box was found, process the next image
         if corrupt_annotations_in_image:
@@ -445,6 +536,17 @@ for set_type, images in [("train", train_images), ("val", val_images)]:
 
     print(f"  Processed {processed_count} {set_type} images")
 
+# Print class distribution statistics
+if USE_SIDE_DETECTION:
+    print(f"\nClass distribution:")
+    for set_type in ['train', 'val']:
+        total = sum(class_counts[set_type])
+        print(f"  {set_type.capitalize()}:")
+        for i, class_name in enumerate(classes):
+            count = class_counts[set_type][i]
+            percentage = (count / total * 100) if total > 0 else 0
+            print(f"    {class_name}: {count} ({percentage:.1f}%)")
+
 # Create dataset.yaml
 yaml_content = f"""\
 train: {os.path.abspath(train_images_dir)}
@@ -460,6 +562,7 @@ print(f"\n✓ Dataset preparation completed successfully!")
 print(f"  Dataset configuration saved to: {yaml_path}")
 print(f"  Training images: {len(train_images)}")
 print(f"  Validation images: {len(val_images)}")
+print(f"  Classes: {classes}")
 
 # Final summary
 final_summary = download_results["summary"]
