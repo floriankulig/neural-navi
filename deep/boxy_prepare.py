@@ -38,7 +38,7 @@ for dir_path in [
     val_images_dir,
     val_labels_dir,
 ]:
-    if "val" in dir_path or "train" in dir_path:
+    if ("val" in dir_path or "train" in dir_path) and os.path.isdir(dir_path):
         shutil.rmtree(dir_path)
     os.makedirs(dir_path, exist_ok=True)
 
