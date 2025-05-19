@@ -14,8 +14,12 @@ train_labels_dir = os.path.join(yolo_dir, "train", "labels")
 val_images_dir = os.path.join(yolo_dir, "val", "images")
 val_labels_dir = os.path.join(yolo_dir, "val", "labels")
 
-IMG_WIDTH = img_width = 1232
-IMG_HEIGHT = img_height = 1028
+IMG_WIDTH = 1232
+IMG_HEIGHT = 1028
+# There are two boxy datasets. We download, down sized images to save space, hence why we must scale coordinates accordingly
+BOXY_SCALE_FACTOR = 2
+img_width = IMG_WIDTH * BOXY_SCALE_FACTOR
+img_height = IMG_HEIGHT * BOXY_SCALE_FACTOR
 
 # Create directories (task 0)
 for dir_path in [
