@@ -17,7 +17,7 @@ val_labels_dir = os.path.join(yolo_dir, "val", "labels")
 
 IMG_WIDTH = 1232
 IMG_HEIGHT = 1028
-# There are two boxy datasets. We download, down sized images to save space, hence why we must scale coordinates accordingly
+# There are two boxy datasets. We download down sized images to save space, hence why we must scale coordinates accordingly
 BOXY_SCALE_FACTOR = 2
 img_width = IMG_WIDTH * BOXY_SCALE_FACTOR
 img_height = IMG_HEIGHT * BOXY_SCALE_FACTOR
@@ -72,20 +72,103 @@ base_url = BOXY_SERVER + "/boxy_raw_scaled/bluefox_{sequence}_bag.zip"
 json_url = BOXY_SERVER + "/boxy_labels_train.json"  # Replace with updated URL
 # json_url = BOXY_SERVER + "/boxy_labels_valid.json"  # Replace with updated URL
 
-# Download Boxy-Zip Batches (task 1)
+
+def is_valid_zip_file(file_path):
+    if not os.path.exists(file_path):
+        return False
+
+    try:
+        with zipfile.ZipFile(file_path, "r") as zip_ref:
+            # Test the ZIP file integrity
+            zip_ref.testzip()
+            # Check if ZIP file has content
+            if len(zip_ref.namelist()) == 0:
+                print(f"Warning: {file_path} is empty")
+                return False
+            return True
+    except (zipfile.BadZipFile, zipfile.LargeZipFile):
+        print(f"Warning: {file_path} is corrupted")
+        return False
+    except Exception as e:
+        print(f"Error checking {file_path}: {e}")
+        return False
+
+
+def download_with_validation(url, output_path, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            subprocess.run(["curl", "-L", url, "-o", output_path], check=True)
+
+            # Validate the downloaded file
+            if is_valid_zip_file(output_path):
+                return True
+            else:
+                print(
+                    f"Downloaded file is invalid (attempt {attempt + 1}/{max_retries})"
+                )
+                if os.path.exists(output_path):
+                    os.remove(output_path)
+
+        except subprocess.CalledProcessError as e:
+            print(f"Download failed (attempt {attempt + 1}/{max_retries}): {e}")
+            if os.path.exists(output_path):
+                os.remove(output_path)
+
+    print(f"Failed to download {url} after {max_retries} attempts")
+    return False
+
+
+# Download Boxy-Zip Batches with validation (task 1)
+print(f"Checking and downloading {len(sunny_sequences)} ZIP files...")
+skipped_count = 0
+downloaded_count = 0
+failed_count = 0
+
 for sequence in sunny_sequences:
     url = base_url.format(sequence=sequence)
-    zip_file = os.path.join(boxy_raw_dir, f"bluefox_{sequence}.zip")
-    # subprocess.run(["wget", url, "-O", zip_file], check=True)
-    subprocess.run(["curl", "-L", url, "-o", zip_file], check=True)
+    zip_file = os.path.join(boxy_raw_dir, f"bluefox_{sequence}_bag.zip")
+
+    # Check if file already exists and is valid
+    if is_valid_zip_file(zip_file):
+        print(f"✓ Skipping {sequence} (already downloaded and valid)")
+        skipped_count += 1
+        continue
+
+    # If file exists but is invalid, remove it
+    if os.path.exists(zip_file):
+        print(f"Removing corrupted file: {zip_file}")
+        os.remove(zip_file)
+
+    # Download the file
+    print(f"Downloading {sequence}...")
+    if download_with_validation(url, zip_file):
+        print(f"✓ Successfully downloaded {sequence}")
+        downloaded_count += 1
+    else:
+        print(f"✗ Failed to download {sequence}")
+        failed_count += 1
+
+print(f"\nDownload summary:")
+print(f"  Skipped (already valid): {skipped_count}")
+print(f"  Downloaded: {downloaded_count}")
+print(f"  Failed: {failed_count}")
+
+if failed_count > 0:
+    print(
+        f"Warning: {failed_count} files failed to download. You may want to retry or check your connection."
+    )
 
 # Download Boxy labels JSON (task 2)
 json_path = os.path.join(data_dir, "boxy_labels.json")
-# subprocess.run(["wget", json_url, "-O", json_path], check=True)
-subprocess.run(["curl", "-L", json_url, "-o", json_path], check=True)
+if not os.path.exists(json_path):
+    print("Downloading labels JSON...")
+    subprocess.run(["curl", "-L", json_url, "-o", json_path], check=True)
+else:
+    print("✓ Labels JSON already exists, skipping download")
 
 # Extract zip files into boxy_raw using Python's zipfile
 print("Extracting ZIP files...")
+extracted_count = 0
 for zip_file in os.listdir(boxy_raw_dir):
     if zip_file.endswith(".zip"):
         zip_path = os.path.join(boxy_raw_dir, zip_file)
@@ -98,6 +181,7 @@ for zip_file in os.listdir(boxy_raw_dir):
                 print(f"  Found {len(members)} files in archive")
                 zip_ref.extractall(boxy_raw_dir)
             print(f"Successfully extracted {zip_file}")
+            extracted_count += 1
 
             # Optional: Remove ZIP file after extraction to save space
             os.remove(zip_path)
@@ -109,6 +193,8 @@ for zip_file in os.listdir(boxy_raw_dir):
         except Exception as e:
             print(f"Error extracting {zip_file}: {e}")
             continue
+
+print(f"Successfully extracted {extracted_count} ZIP files")
 
 # Load the JSON file
 with open(json_path, "r") as f:
@@ -126,7 +212,7 @@ for image_path, annotation in labels.items():
         valid_images.append(image_path)
 
 print(
-    f"{len(valid_images)}/{len(labels)} images without annotation flaws ({(len(valid_images)/len(labels) * 100)}%)"
+    f"{len(valid_images)}/{len(labels)} images without annotation flaws ({(len(valid_images)/len(labels) * 100):.1f}%)"
 )
 
 # Shuffle and split into train and val sets (80% train, 20% val)
