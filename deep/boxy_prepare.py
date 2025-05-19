@@ -12,7 +12,7 @@ import time
 # Define directories
 data_dir = "data"
 boxy_raw_dir = "boxy_raw"
-yolo_dir = os.path.join(data_dir, "boxy_yolo")
+yolo_dir = os.path.join(data_dir, "boxy_yolo_n1")
 train_images_dir = os.path.join(yolo_dir, "train", "images")
 train_labels_dir = os.path.join(yolo_dir, "train", "labels")
 val_images_dir = os.path.join(yolo_dir, "val", "images")
