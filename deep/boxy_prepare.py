@@ -9,10 +9,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
 import time
 
+USE_SIDE_DETECTION = True
+
 # Define directories
 data_dir = "data"
 boxy_raw_dir = "boxy_raw"
-yolo_dir = os.path.join(data_dir, "boxy_yolo_n1")
+yolo_dir = os.path.join(data_dir, f"boxy_yolo_n{3 if USE_SIDE_DETECTION else 1}")
 train_images_dir = os.path.join(yolo_dir, "train", "images")
 train_labels_dir = os.path.join(yolo_dir, "train", "labels")
 val_images_dir = os.path.join(yolo_dir, "val", "images")
