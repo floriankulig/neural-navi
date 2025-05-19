@@ -19,7 +19,7 @@ source venv/bin/activate
 # pip install -r ../requirements.txt
 
 # Führe das Skript aus
-srun python3 boxy_prepare.py
+srun python3 -u boxy_prepare.py
 
 # Deaktiviere virtuelle Umgebung
 deactivate

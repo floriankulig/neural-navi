@@ -356,16 +356,7 @@ if extraction_errors:
 with open(json_path, "r") as f:
     labels = json.load(f)
 
-# Collect valid images and handle corrupted ones
-valid_images = []
-for image_path, annotation in labels.items():
-    full_image_path = os.path.join(boxy_raw_dir, image_path[2:])  # Remove "./"
-    if "no-issues" not in annotation["flaws"]:
-        if os.path.exists(full_image_path):
-            os.remove(full_image_path)
-            print(f"Deleted corrupted image: {full_image_path}")
-    else:
-        valid_images.append(image_path)
+valid_images = list(labels.keys())
 
 print(
     f"{len(valid_images)}/{len(labels)} images without annotation flaws ({(len(valid_images)/len(labels) * 100):.1f}%)"
@@ -395,39 +386,50 @@ for set_type, images in [("train", train_images), ("val", val_images)]:
             print(f"Image not found: {full_image_path}")
             continue
 
-        # Copy image to destination
-        dest_image_path = os.path.join(dest_image_dir, os.path.basename(image_path))
-        shutil.copy(full_image_path, dest_image_path)
-
         # Create YOLO annotation file
         annotation = labels[image_path]
         annotation_lines = []
+        corrupt_annotations_in_image = False
         for vehicle in annotation["vehicles"]:
             if "rear" in vehicle and vehicle["rear"] is not None:
-                rear = vehicle["rear"]
-                x1, y1, x2, y2 = rear["x1"], rear["y1"], rear["x2"], rear["y2"]
-                # Skip invalid bounding boxes
-                if x1 >= x2 or y1 >= y2:
-                    continue
-                box_width = x2 - x1
-                box_height = y2 - y1
-                center_x = (x1 + x2) / 2
-                center_y = (y1 + y2) / 2
-                norm_center_x = center_x / img_width
-                norm_center_y = center_y / img_height
-                norm_width = box_width / img_width
-                norm_height = box_height / img_height
+                bbox = vehicle["rear"]
+            elif "AABB" in vehicle and vehicle["AABB"] is not None:
+                bbox = vehicle["AABB"]
+            else:
+                corrupt_annotations_in_image = True
+                break
+            x1, y1, x2, y2 = bbox["x1"], bbox["y1"], bbox["x2"], bbox["y2"]
+            # Skip invalid bounding boxes
+            if x1 >= x2 or y1 >= y2:
+                corrupt_annotations_in_image = True
+                break
+            box_width = x2 - x1
+            box_height = y2 - y1
+            center_x = (x1 + x2) / 2
+            center_y = (y1 + y2) / 2
+            norm_center_x = center_x / img_width
+            norm_center_y = center_y / img_height
+            norm_width = box_width / img_width
+            norm_height = box_height / img_height
 
-                # Ensure normalized values are within [0,1]
-                if (
-                    0 <= norm_center_x <= 1
-                    and 0 <= norm_center_y <= 1
-                    and 0 <= norm_width <= 1
-                    and 0 <= norm_height <= 1
-                ):
-                    annotation_lines.append(
-                        f"0 {norm_center_x} {norm_center_y} {norm_width} {norm_height}"
-                    )
+            # Ensure normalized values are within [0,1]
+            if (
+                0 <= norm_center_x <= 1
+                and 0 <= norm_center_y <= 1
+                and 0 <= norm_width <= 1
+                and 0 <= norm_height <= 1
+            ):
+                annotation_lines.append(
+                    f"0 {norm_center_x} {norm_center_y} {norm_width} {norm_height}"
+                )
+
+        # If there is a vehicle where no valid bounding-box was found, process the next image
+        if corrupt_annotations_in_image:
+            continue
+
+        # Copy image to destination
+        dest_image_path = os.path.join(dest_image_dir, os.path.basename(image_path))
+        shutil.copy(full_image_path, dest_image_path)
 
         # Write annotation file
         annotation_file = os.path.splitext(os.path.basename(image_path))[0] + ".txt"
