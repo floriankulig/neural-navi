@@ -149,12 +149,6 @@ def create_heatmap(annotations, output_path, img_width, img_height, resolution=4
     plt.title('Number of vehicles that occupy each pixel')
     plt.axis('off')
     
-    # Add annotation explaining the pattern
-    plt.figtext(0.5, 0.01, 
-                "Figure: Number of vehicles that occupy each pixel. A large percentage of vehicles\n"
-                "is represented by small annotations towards the center of the image close to the vanishing point.",
-                ha="center", fontsize=10, bbox={"facecolor":"white", "alpha":0.8, "pad":5})
-    
     # Save figure
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
