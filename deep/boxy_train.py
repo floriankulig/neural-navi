@@ -20,6 +20,7 @@ def main():
         'multi_scale': True,
         'optimizer': 'AdamW',
         'warmup_epochs': 5,
+        'lr0': 0.005,
         'degrees': 4,
         'mixup': 0.2,
         'cutmix': 0.1,
