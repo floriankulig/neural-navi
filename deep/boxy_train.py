@@ -60,6 +60,7 @@ def main():
         'close_mosaic': 10,
         'save_period': 2,
         'workers': 8,
+        'classes': [1],
         'device': devices,
         'dropout': 0.15,
         'pretrained': True,
