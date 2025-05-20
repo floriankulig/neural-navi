@@ -177,7 +177,7 @@ def determine_vehicle_class(vehicle, img_width):
     y2_diff = abs(aabb_bbox["y2"] - rear_bbox["y2"])
 
     # Threshold for considering bboxes as "equal" (in pixels)
-    equality_threshold = 20  # pixels
+    equality_threshold = 10  # pixels
 
     if (
         x1_diff <= equality_threshold
@@ -360,7 +360,7 @@ for set_type, images in [("train", train_images), ("val", val_images)]:
             if SKIP_SMALL:
                 width_percent = norm_width * 100
                 height_percent = norm_height * 100
-                min_area_to_cover = 0.01  # 1% der Bildfläche
+                min_area_to_cover = 0.015  # 1.5% der Bildfläche
                 min_area_to_cover_percent = min_area_to_cover * 100
                 # Skip if the bounding box is too small
                 if width_percent * height_percent < min_area_to_cover_percent**2:
