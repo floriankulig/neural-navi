@@ -13,9 +13,9 @@ def main():
     # Training hyperparameters
     hyperparameters = {
         'data': 'data/dataset_nc3.yaml',
-        'epochs': 60,
+        'epochs': 50,
         'patience': 15,
-        'batch': 128,
+        'batch': 240,
         'imgsz': 704,
         'multi_scale': True,
         'optimizer': 'AdamW',
@@ -28,12 +28,12 @@ def main():
         'close_mosaic': 15,
         'save_period': 5,
         'workers': 8,
-        'device': [-1, -1],
+        'device': [-1, -1, -1, -1],
         'dropout': 0.15,
         'pretrained': True,
         'plots':True,
         'val':True,
-        'name': 'yolo12n3_boxy',
+        'name': 'yolo12n3_boxy_e2e',
     }
     
     # Start training

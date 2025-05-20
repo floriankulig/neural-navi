@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=inf22086_yolo12n_boxy_train
-#SBATCH --gres=gpu:2
-#SBATCH --cpus-per-task=8
+#SBATCH --gres=gpu:4
+#SBATCH --cpus-per-task=12
 #SBATCH --mem=48G
 #SBATCH --time=12:00:00
 #SBATCH --output=yolo12n_train-%j.out
