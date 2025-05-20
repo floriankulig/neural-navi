@@ -5,6 +5,7 @@ Boxy Dataset Visualization Script
 Creates visualizations for the YOLO-annotated Boxy dataset:
 1. Heatmap showing vehicle density (similar to Boxy paper)
 2. Visualizations to verify left/front/right categorization
+3. Examples of suspicious annotations in specific regions
 """
 
 import os
@@ -274,6 +275,145 @@ def visualize_example_images(annotations, output_dir, sample_count=10):
         output_path = os.path.join(output_dir, f"example_{os.path.basename(img_path)}")
         cv2.imwrite(output_path, img)
 
+def find_suspicious_annotations(annotations, output_dir, region_params=None, sample_count=5):
+    """
+    Find and visualize images with annotations in suspicious regions of the image
+    
+    Args:
+        annotations: List of annotation dictionaries
+        output_dir: Directory to save visualizations
+        region_params: Dictionary defining suspicious regions with:
+                      {'x_min', 'x_max', 'y_min', 'y_max', 'class_id'}
+        sample_count: Maximum number of images to show
+    """
+    # Default region parameters (bottom center, green cluster)
+    if region_params is None:
+        region_params = [
+            {
+                'name': 'bottom_center',
+                'x_min': 0.35, 
+                'x_max': 0.65, 
+                'y_min': 0.90, 
+                'y_max': 1.0,
+                'class_id': 1  # vehicle.front (green in scatter plot)
+            }
+        ]
+    
+    # Create directory for suspicious annotations
+    suspicious_dir = os.path.join(output_dir, 'suspicious_regions')
+    os.makedirs(suspicious_dir, exist_ok=True)
+    
+    # Class colors (BGR for OpenCV)
+    colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]  # Blue, Green, Red
+    class_names = ['vehicle.left', 'vehicle.front', 'vehicle.right']
+    
+    # Process each suspicious region
+    for region in region_params:
+        region_name = region.get('name', 'unnamed_region')
+        region_dir = os.path.join(suspicious_dir, region_name)
+        os.makedirs(region_dir, exist_ok=True)
+        
+        # Filter annotations in this region
+        suspicious_anns = [
+            ann for ann in annotations 
+            if (region.get('class_id', None) is None or ann['class_id'] == region['class_id']) and
+               region['x_min'] <= ann['x_center'] <= region['x_max'] and
+               region['y_min'] <= ann['y_center'] <= region['y_max']
+        ]
+        
+        print(f"Found {len(suspicious_anns)} annotations in region '{region_name}'")
+        
+        if not suspicious_anns:
+            continue
+        
+        # Get unique image paths for these annotations
+        unique_images = set(ann['img_path'] for ann in suspicious_anns)
+        print(f"Found in {len(unique_images)} unique images")
+        
+        # Sample a subset of images
+        if sample_count < len(unique_images):
+            sampled_images = random.sample(list(unique_images), sample_count)
+        else:
+            sampled_images = list(unique_images)
+        
+        # Create visualization for each sampled image
+        for img_path in tqdm(sampled_images, desc=f"Visualizing '{region_name}' region"):
+            # Read image
+            img = cv2.imread(img_path)
+            if img is None:
+                continue
+            
+            # Get all annotations for this image
+            all_img_annotations = [ann for ann in annotations if ann['img_path'] == img_path]
+            
+            # Get suspicious annotations for this image
+            sus_img_annotations = [
+                ann for ann in all_img_annotations 
+                if (region.get('class_id', None) is None or ann['class_id'] == region['class_id']) and
+                   region['x_min'] <= ann['x_center'] <= region['x_max'] and
+                   region['y_min'] <= ann['y_center'] <= region['y_max']
+            ]
+            
+            # Create a copy of the image for highlighting suspicious boxes
+            img_highlight = img.copy()
+            
+            # Draw all bounding boxes
+            for ann in all_img_annotations:
+                # Get normalized box coordinates
+                x_center = ann['x_center']
+                y_center = ann['y_center']
+                width = ann['width']
+                height = ann['height']
+                class_id = ann['class_id']
+                
+                # Convert to pixel coordinates
+                h, w = img.shape[:2]
+                x1 = int((x_center - width/2) * w)
+                y1 = int((y_center - height/2) * h)
+                x2 = int((x_center + width/2) * w)
+                y2 = int((y_center + height/2) * h)
+                
+                # Determine color and line thickness
+                is_suspicious = ann in sus_img_annotations
+                color = colors[class_id]
+                thickness = 4 if is_suspicious else 2
+                
+                # Draw bounding box
+                cv2.rectangle(img, (x1, y1), (x2, y2), color, thickness)
+                
+                # Add label with position information if suspicious
+                label = class_names[class_id]
+                if is_suspicious:
+                    label += f" x:{x_center:.2f} y:{y_center:.2f}"
+                    # Draw crosshair at center of suspicious annotation
+                    center_x = int(x_center * w)
+                    center_y = int(y_center * h)
+                    cv2.drawMarker(img, (center_x, center_y), color, cv2.MARKER_CROSS, 20, 2)
+                
+                cv2.putText(img, label, (x1, y1-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, thickness//2 + 1)
+            
+            # Add region boundary visualization
+            h, w = img.shape[:2]
+            region_x1 = int(region['x_min'] * w)
+            region_y1 = int(region['y_min'] * h)
+            region_x2 = int(region['x_max'] * w)
+            region_y2 = int(region['y_max'] * h)
+            cv2.rectangle(img, (region_x1, region_y1), (region_x2, region_y2), (0, 255, 255), 2)  # Yellow boundary
+            
+            # Save annotated image
+            output_filename = f"suspicious_{region_name}_{os.path.basename(img_path)}"
+            output_path = os.path.join(region_dir, output_filename)
+            cv2.imwrite(output_path, img)
+            
+            # Create a second visualization with just the suspicious region
+            # Extract region of interest and resize for better visibility
+            roi = img[region_y1:region_y2, region_x1:region_x2]
+            if roi.size > 0:  # Check if ROI is not empty
+                scale_factor = 2  # Make ROI larger for better visibility
+                roi_resized = cv2.resize(roi, (0, 0), fx=scale_factor, fy=scale_factor)
+                roi_output_path = os.path.join(region_dir, f"roi_{output_filename}")
+                cv2.imwrite(roi_output_path, roi_resized)
+
 def main():
     args = parse_args()
     
@@ -314,6 +454,26 @@ def main():
         train_annotations, 
         args.output_dir, 
         sample_count=args.show_examples
+    )
+    
+    # NEW: Find and visualize suspicious annotations
+    print("Finding and visualizing suspicious annotations...")
+    # Define suspicious regions
+    suspicious_regions = [
+        {
+            'name': 'bottom_center',
+            'x_min': 0.35, 
+            'x_max': 0.65, 
+            'y_min': 0.90, 
+            'y_max': 1.0,
+            'class_id': 1  # vehicle.front (green in scatter plot)
+        }
+    ]
+    
+    find_suspicious_annotations(
+        train_annotations,
+        args.output_dir,
+        sample_count=20  # Show more examples of suspicious annotations
     )
     
     print(f"Visualizations completed and saved to {args.output_dir}")

@@ -204,6 +204,13 @@ def determine_vehicle_class(vehicle, img_width):
     else:
         return 1  # vehicle.front
 
+def is_in_corrupt_region(x_center, y_center):
+    # Bottom center corrupt region (bonnet/motorhaube)
+    if (0.35 <= x_center <= 0.65 and           # x range 
+        0.90 <= y_center <= 1.0):              # y range
+        return True
+    
+    return False
 
 # Download Boxy-Zip Batches with validation (task 1)
 print(f"Checking and downloading {len(sunny_sequences)} ZIP files...")
@@ -356,6 +363,10 @@ for set_type, images in [("train", train_images), ("val", val_images)]:
             norm_center_y = center_y / img_height
             norm_width = box_width / img_width
             norm_height = box_height / img_height
+
+            # Skip annotations in corrupt regions
+            if is_in_corrupt_region(norm_center_x, norm_center_y):
+                continue
 
             if SKIP_SMALL:
                 width_percent = norm_width * 100
