@@ -12,9 +12,9 @@ def main():
     
     # Training hyperparameters
     hyperparameters = {
-        'data': 'data/dataset_nc3.yaml',
-        'epochs': 50,
-        'patience': 15,
+        'data': 'data/dataset_nc3_skip.yaml',
+        'epochs': 45,
+        'patience': 10,
         'batch': 240,
         'imgsz': 704,
         'multi_scale': True,
@@ -23,17 +23,18 @@ def main():
         'lr0': 0.0075,
         'cos_lr': True,
         'degrees': 4,
-        'mixup': 0.2,
-        'cutmix': 0.1,
-        'close_mosaic': 15,
+        'mixup': 0.25,
+        'cutmix': 0.15,
+        'close_mosaic': 13,
         'save_period': 5,
         'workers': 8,
         'device': [-1, -1, -1, -1],
+        'cache': True,
         'dropout': 0.15,
         'pretrained': True,
-        'plots':True,
-        'val':True,
-        'name': 'yolo12n3_boxy_e2e',
+        'plots': True,
+        'val': True,
+        'name': 'yolo12n3_skip',
     }
     
     # Start training
