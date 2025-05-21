@@ -204,13 +204,14 @@ def determine_vehicle_class(vehicle, img_width):
     else:
         return 1  # vehicle.front
 
+
 def is_in_corrupt_region(x_center, y_center):
     # Bottom center corrupt region (bonnet/motorhaube)
-    if (0.35 <= x_center <= 0.65 and           # x range 
-        0.90 <= y_center <= 1.0):              # y range
+    if 0.35 <= x_center <= 0.65 and 0.90 <= y_center <= 1.0:  # x range  # y range
         return True
-    
+
     return False
+
 
 # Download Boxy-Zip Batches with validation (task 1)
 print(f"Checking and downloading {len(sunny_sequences)} ZIP files...")
@@ -266,22 +267,38 @@ extracted_count = 0
 for zip_file in os.listdir(boxy_raw_dir):
     if zip_file.endswith(".zip"):
         zip_path = os.path.join(boxy_raw_dir, zip_file)
-        print(f"Extracting {zip_file}...")
+        print(f"Processing {zip_file}...")
 
         try:
             with zipfile.ZipFile(zip_path, "r") as zip_ref:
-                # Extract with progress indication for large files
-                members = zip_ref.namelist()
-                print(f"  Found {len(members)} files in archive")
+                # Get list of file members (excluding directories)
+                file_members = [m for m in zip_ref.infolist() if not m.is_dir()]
+                if not file_members:
+                    print(f"Warning: {zip_file} contains no files, skipping...")
+                    continue
+
+                # Check if all files already exist in boxy_raw_dir
+                all_files_exist = all(
+                    os.path.exists(os.path.join(boxy_raw_dir, m.filename))
+                    for m in file_members
+                )
+                if all_files_exist:
+                    print(
+                        f"✓ Skipping extraction of {zip_file} (all files already exist)"
+                    )
+                    continue
+
+                # If not all files exist, extract the ZIP
+                print(f"Extracting {zip_file}...")
                 zip_ref.extractall(boxy_raw_dir)
-            print(f"Successfully extracted {zip_file}")
-            extracted_count += 1
+                print(f"Successfully extracted {zip_file}")
+                extracted_count += 1
 
         except zipfile.BadZipFile:
             print(f"Warning: {zip_file} appears to be corrupted, skipping...")
             continue
         except Exception as e:
-            print(f"Error extracting {zip_file}: {e}")
+            print(f"Error processing {zip_file}: {e}")
             continue
 
 print(f"Successfully extracted {extracted_count} ZIP files")
