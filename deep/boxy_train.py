@@ -5,15 +5,11 @@ YOLOv12n Training Script for Boxy Dataset
 """
 
 from ultralytics import YOLO
-import argparse
 
 def main():
-    parser = argparse.ArgumentParser(description='Train YOLOv12n on Boxy Dataset')
-    parser.add_argument('--num_gpus', type=int, default=4, help='Number of GPUs to use for training')
-    args = parser.parse_args()
-
-    batch_size = 64 * args.num_gpus  
-    devices = [-1] * args.num_gpus
+    num_gpus = 4
+    batch_size = 64 * num_gpus  
+    devices = [-1] * num_gpus
 
     # Load pre-trained model
     model = YOLO("yolo12n.pt")
@@ -21,7 +17,8 @@ def main():
     # Training hyperparameters
     hyperparameters = {
         'data': 'data/dataset_nc3_skip.yaml',
-        'epochs': 40,
+        'epochs': 42,
+        'close_mosaic': 8,
         'patience': 10,
         'batch': batch_size,
         'imgsz': 704,
@@ -33,15 +30,16 @@ def main():
         'degrees': 4,
         'mixup': 0.25,
         'cutmix': 0.15,
-        'close_mosaic': 8,
         'save_period': 5,
         'workers': 8,
+        # 'cls': 1,
         'device': devices,
         'dropout': 0.15,
         'pretrained': True,
         'plots': True,
         'val': True,
-        'name': 'yolo12n3',
+        'single_cls': False,
+        'name': 'yolo12n3_skip',
     }
     # model = YOLO("best.pt")
     # hyperparameters = {

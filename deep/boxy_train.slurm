@@ -7,14 +7,6 @@
 #SBATCH --output=yolo12n_train-%j.out
 #SBATCH --error=yolo12n_train-%j.out
 
-# Set default values if not provided as environment variables
-GPUS=${GPUS:-4}
-
-# Print configuration
-echo "=== Training Configuration ==="
-echo "Number of GPUs: $GPUS"
-echo "=========================="
-
 # Create virtual environment if it doesn't exist
 if [ ! -d "venv" ]; then
     python3 -m venv venv
@@ -27,7 +19,7 @@ source venv/bin/activate
 pip install ultralytics torch torchvision torchaudio
 
 # Run training with parameters
-srun python3 -u boxy_train.py --num_gpus $GPUS
+srun python3 -u boxy_train.py
 
 # Deactivate virtual environment
 deactivate
