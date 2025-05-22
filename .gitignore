@@ -24,7 +24,7 @@ deep/*.out
 /runs
 
 # Models
-best_*.pt
+best*.pt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
