@@ -11,16 +11,17 @@ import torch.nn as nn
 
 class SimpleConcatenationFusion(FusionModule):
     """
-    Simple fusion through concatenation and MLP.
+    Simple fusion through aggregation of object detections and concatenation with telemetry.
 
-    Concatenates the feature vectors from different modalities and
-    processes them through a Multi-Layer Perceptron.
+    Processes each object detection, aggregates them, and then concatenates
+    with telemetry features.
 
     Args:
       embedding_dim (int): Dimensionality of the input feature vectors
       output_dim (int, optional): Dimensionality of the output vector.
         Default is embedding_dim * 2.
       dropout_prob (float): Dropout probability
+      aggregation_method (str): Method to aggregate object detections ('mean', 'max', 'attention')
     """
 
     def __init__(
@@ -28,10 +29,12 @@ class SimpleConcatenationFusion(FusionModule):
         embedding_dim: int,
         output_dim: Optional[int] = None,
         dropout_prob: float = 0.1,
+        aggregation_method: str = "mean",
     ):
         super().__init__()
 
         self.output_dim = output_dim or embedding_dim * 2
+        self.aggregation_method = aggregation_method
 
         # MLP for fusion
         self.fusion_mlp = nn.Sequential(
@@ -42,6 +45,47 @@ class SimpleConcatenationFusion(FusionModule):
 
         self.norm = nn.LayerNorm(self.output_dim)
 
+        if aggregation_method == "mean":
+            self.norm_detection = nn.LayerNorm(embedding_dim)
+
+    def _aggregate_detections(self, detections, mask):
+        """
+        Aggregate object detections using the specified method.
+
+        Args:
+          detections: Tensor of shape (batch_size, seq_len, max_detections, embedding_dim)
+          mask: Boolean mask of shape (batch_size, seq_len, max_detections)
+
+        Returns:
+          Aggregated detections of shape (batch_size, seq_len, embedding_dim)
+        """
+        batch_size, seq_len, max_detections, embedding_dim = detections.shape
+
+        if self.aggregation_method == "mean":
+            # Mean pooling considering only valid detections
+            # Replace masked (invalid) values with zeros
+            masked_detections = detections * mask.unsqueeze(-1)
+
+            # Sum and divide by number of valid detections (avoid div by zero)
+            detection_sum = masked_detections.sum(dim=2)  # Sum along max_detections
+            valid_count = mask.sum(dim=2, keepdim=True).clamp(
+                min=1
+            )  # Count valid, avoid div by zero
+            return detection_sum / valid_count
+
+        elif self.aggregation_method == "max":
+            # Max pooling considering only valid detections
+            # Replace masked (invalid) values with large negative values
+            masked_detections = detections.clone()
+            masked_detections[~mask.unsqueeze(-1).expand_as(masked_detections)] = float(
+                "-inf"
+            )
+
+            # Max along detection dimension
+            return torch.max(masked_detections, dim=2)[0]
+        else:
+            raise ValueError(f"Unknown aggregation method: {self.aggregation_method}")
+
     def forward(self, encoded_inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
         """
         Forward pass through the SimpleConcatenationFusion.
@@ -49,7 +93,8 @@ class SimpleConcatenationFusion(FusionModule):
         Args:
           encoded_inputs (dict): Dictionary with encoded features
             "telemetry_features": (batch_size, seq_len, embedding_dim)
-            "detection_features": (batch_size, seq_len, embedding_dim)
+            "detection_features": (batch_size, seq_len, max_detections, embedding_dim)
+            "detection_mask": (batch_size, seq_len, max_detections)
 
         Returns:
           torch.Tensor: Fused features
@@ -57,9 +102,16 @@ class SimpleConcatenationFusion(FusionModule):
         """
         telemetry = encoded_inputs["telemetry_features"]
         detections = encoded_inputs["detection_features"]
+        mask = encoded_inputs["detection_mask"]
+
+        # Aggregate detections
+        aggregated_detections = self._aggregate_detections(detections, mask)
+
+        if self.aggregation_method == "attention":
+            aggregated_detections = self.norm_detection(aggregated_detections)
 
         # Simple concatenation along the feature dimension
-        fused_features = torch.cat([telemetry, detections], dim=-1)
+        fused_features = torch.cat([telemetry, aggregated_detections], dim=-1)
 
         # Processing through MLP
         fused_features = self.fusion_mlp(fused_features)
@@ -70,10 +122,10 @@ class SimpleConcatenationFusion(FusionModule):
 
 class CrossModalAttentionFusion(FusionModule):
     """
-    Fusion with Cross-Modal Attention mechanism.
+    Fusion with Cross-Modal Attention mechanism for individual object attention.
 
     Uses Multi-Head Attention to allow telemetry data to extract relevant
-    information from detection data and vice versa.
+    information from individual object detections and vice versa.
 
     Args:
       embedding_dim (int): Dimensionality of the input feature vectors
@@ -81,7 +133,6 @@ class CrossModalAttentionFusion(FusionModule):
       output_dim (int, optional): Dimensionality of the output vector.
         Default is embedding_dim * 2.
       dropout_prob (float): Dropout probability
-      bidirectional (bool): Whether to apply attention in both directions
     """
 
     def __init__(
@@ -90,7 +141,7 @@ class CrossModalAttentionFusion(FusionModule):
         num_heads: int = 4,
         output_dim: Optional[int] = None,
         dropout_prob: float = 0.1,
-        bidirectional: bool = False,
+        max_detections: int = 12,
     ):
         super().__init__()
 
@@ -102,7 +153,6 @@ class CrossModalAttentionFusion(FusionModule):
 
         self.embedding_dim = embedding_dim
         self.output_dim = output_dim or embedding_dim * 2
-        self.bidirectional = bidirectional
 
         # Telemetry -> Detections Attention
         self.tel_to_det_attention = nn.MultiheadAttention(
@@ -112,22 +162,20 @@ class CrossModalAttentionFusion(FusionModule):
             batch_first=True,
         )
 
-        # Optional: Detections -> Telemetry Attention (bidirectional)
-        if bidirectional:
-            self.det_to_tel_attention = nn.MultiheadAttention(
-                embed_dim=embedding_dim,
-                num_heads=num_heads,
-                dropout=dropout_prob,
-                batch_first=True,
-            )
-
-        # Layernorms for attention outputs
+        # Layernorms
         self.norm_tel_attended = nn.LayerNorm(embedding_dim)
-        if bidirectional:
-            self.norm_det_attended = nn.LayerNorm(embedding_dim)
+
+        # MLP for embedding detections as a single vector
+        self.det_mlp = nn.Sequential(
+            nn.Linear(embedding_dim * max_detections, embedding_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout_prob),
+        )
+        self.norm_det_mlp = nn.LayerNorm(embedding_dim)
 
         # MLP for fusion of attention results
-        fusion_input_dim = embedding_dim * 3 if bidirectional else embedding_dim * 2
+        fusion_input_dim = embedding_dim * 3  # Default for unidirectional attention
+
         self.fusion_mlp = nn.Sequential(
             nn.Linear(fusion_input_dim, self.output_dim),
             nn.ReLU(),
@@ -143,7 +191,159 @@ class CrossModalAttentionFusion(FusionModule):
         Args:
           encoded_inputs (dict): Dictionary with encoded features
             "telemetry_features": (batch_size, seq_len, embedding_dim)
-            "detection_features": (batch_size, seq_len, embedding_dim)
+            "detection_features": (batch_size, seq_len, max_detections, embedding_dim)
+            "detection_mask": (batch_size, seq_len, max_detections)
+
+        Returns:
+          torch.Tensor: Fused features
+            Shape: (batch_size, seq_len, output_dim)
+        """
+        telemetry = encoded_inputs[
+            "telemetry_features"
+        ]  # [batch_size, seq_len, embedding_dim]
+        detections = encoded_inputs[
+            "detection_features"
+        ]  # [batch_size, seq_len, max_detections, embedding_dim]
+        mask = encoded_inputs["detection_mask"]  # [batch_size, seq_len, max_detections]
+
+        batch_size, seq_len, embedding_dim = telemetry.shape
+        _, _, max_detections, _ = detections.shape
+
+        # Process each timestep separately since we need to handle the object dimension
+        tel_attended_list = []
+
+        for t in range(seq_len):
+            # Get features for this timestep
+            tel_t = telemetry[:, t]  # [batch_size, embedding_dim]
+            det_t = detections[:, t]  # [batch_size, max_detections, embedding_dim]
+            mask_t = mask[:, t]  # [batch_size, max_detections]
+
+            # Create attention mask (True = ignore)
+            attn_mask = ~mask_t
+
+            # --- Telemetry attends to Detections ---
+            # Reshape telemetry for attention (1 for all the detections)
+            tel_t = tel_t.unsqueeze(1)  # [batch_size, 1, embedding_dim]
+
+            # Apply attention: telemetry (query) attends to detections (key, value) -> returns interesting detections
+            tel_attended_t, _ = self.tel_to_det_attention(
+                query=tel_t, key=det_t, value=det_t, key_padding_mask=attn_mask
+            )
+
+            # Remove singleton dimension
+            tel_attended_t = tel_attended_t.squeeze(1)  # [batch_size, embedding_dim]
+            tel_attended_list.append(tel_attended_t)
+
+            # --- TODO Optional: Detections attend to Telemetry (bidirectional) ---
+
+        # Stack to get full sequence
+        tel_attended = torch.stack(
+            tel_attended_list, dim=1
+        )  # [batch_size, seq_len, embedding_dim]
+        tel_attended = self.norm_tel_attended(tel_attended)
+
+        # --- Add the detections as a residual connection ---
+        detections_seqflattened = detections.view(
+            batch_size, seq_len, max_detections * embedding_dim
+        )  # [batch_size, seq_len, max_detections * embedding_dim]
+        detections_residual = self.det_mlp(detections_seqflattened)
+        detections_residual = self.norm_det_mlp(detections_residual)
+
+        fused_features = torch.cat(
+            [telemetry, detections_residual, tel_attended], dim=-1
+        )
+
+        # Final MLP and normalization
+        fused_features = self.fusion_mlp(fused_features)
+        fused_features = self.norm_fusion(fused_features)
+
+        return fused_features
+
+
+class ObjectQueryFusion(FusionModule):
+    """
+    Advanced fusion module using learnable object queries to extract relevant information.
+
+    Instead of direct cross-attention, this module uses a set of learnable queries
+    that attend to both telemetry and detections separately, and then combines
+    the information. This allows the model to focus on specific aspects of the
+    driving scene in a more flexible way.
+
+    Args:
+      embedding_dim (int): Dimensionality of the input feature vectors
+      num_queries (int): Number of specialized object queries
+      num_heads (int): Number of attention heads
+      output_dim (int, optional): Dimensionality of the output vector
+      dropout_prob (float): Dropout probability
+    """
+
+    def __init__(
+        self,
+        embedding_dim: int,
+        num_queries: int = 8,
+        num_heads: int = 4,
+        output_dim: Optional[int] = None,
+        dropout_prob: float = 0.1,
+    ):
+        super().__init__()
+
+        self.embedding_dim = embedding_dim
+        self.num_queries = num_queries
+        self.output_dim = output_dim or embedding_dim * 2
+
+        # Learnable queries
+        self.object_queries = nn.Parameter(torch.randn(1, num_queries, embedding_dim))
+
+        # Multi-head attention for queries attending to telemetry
+        self.query_to_tel_attention = nn.MultiheadAttention(
+            embed_dim=embedding_dim,
+            num_heads=num_heads,
+            dropout=dropout_prob,
+            batch_first=True,
+        )
+
+        # Multi-head attention for queries attending to detections
+        self.query_to_det_attention = nn.MultiheadAttention(
+            embed_dim=embedding_dim,
+            num_heads=num_heads,
+            dropout=dropout_prob,
+            batch_first=True,
+        )
+
+        # Final attention to combine query outputs
+        self.final_attention = nn.MultiheadAttention(
+            embed_dim=embedding_dim,
+            num_heads=num_heads,
+            dropout=dropout_prob,
+            batch_first=True,
+        )
+
+        # Context vector for final attention
+        self.context_vector = nn.Parameter(torch.randn(1, 1, embedding_dim))
+
+        # Layernorms
+        self.norm_queries_tel = nn.LayerNorm(embedding_dim)
+        self.norm_queries_det = nn.LayerNorm(embedding_dim)
+        self.norm_final = nn.LayerNorm(embedding_dim)
+
+        # MLP for final projection
+        self.output_mlp = nn.Sequential(
+            nn.Linear(embedding_dim * 2, self.output_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout_prob),
+        )
+
+        self.norm_output = nn.LayerNorm(self.output_dim)
+
+    def forward(self, encoded_inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
+        """
+        Forward pass through the ObjectQueryFusion.
+
+        Args:
+          encoded_inputs (dict): Dictionary with encoded features
+            "telemetry_features": (batch_size, seq_len, embedding_dim)
+            "detection_features": (batch_size, seq_len, max_detections, embedding_dim)
+            "detection_mask": (batch_size, seq_len, max_detections)
 
         Returns:
           torch.Tensor: Fused features
@@ -151,33 +351,79 @@ class CrossModalAttentionFusion(FusionModule):
         """
         telemetry = encoded_inputs["telemetry_features"]
         detections = encoded_inputs["detection_features"]
+        mask = encoded_inputs["detection_mask"]
 
-        # Telemetry (Query) looks at Detections (Key, Value)
-        tel_attended, _ = self.tel_to_det_attention(
-            query=telemetry, key=detections, value=detections
-        )
+        batch_size, seq_len, embedding_dim = telemetry.shape
 
-        # Residual connection and normalization
-        tel_attended = telemetry + tel_attended
-        tel_attended = self.norm_tel_attended(tel_attended)
+        # Process each timestep separately
+        fused_features_list = []
 
-        if self.bidirectional:
-            # Detections (Query) look at Telemetry (Key, Value)
-            det_attended, _ = self.det_to_tel_attention(
-                query=detections, key=telemetry, value=telemetry
+        for t in range(seq_len):
+            # Get features for this timestep
+            tel_t = telemetry[:, t]  # [batch_size, embedding_dim]
+            det_t = detections[:, t]  # [batch_size, max_detections, embedding_dim]
+            mask_t = mask[:, t]  # [batch_size, max_detections]
+
+            # Expand queries for batch size
+            queries = self.object_queries.expand(
+                batch_size, -1, -1
+            )  # [batch_size, num_queries, embedding_dim]
+
+            # --- Queries attend to telemetry ---
+            # Reshape telemetry for attention
+            tel_t = tel_t.unsqueeze(1)  # [batch_size, 1, embedding_dim]
+
+            # Queries attend to telemetry
+            queries_tel, _ = self.query_to_tel_attention(
+                query=queries, key=tel_t, value=tel_t
             )
 
-            # Residual connection and normalization
-            det_attended = detections + det_attended
-            det_attended = self.norm_det_attended(det_attended)
+            queries_tel = self.norm_queries_tel(queries_tel)
 
-            # Concatenate and pass through MLP
-            fused_features = torch.cat([tel_attended, det_attended, detections], dim=-1)
-        else:
-            # Concatenate and pass through MLP
-            fused_features = torch.cat([tel_attended, detections], dim=-1)
+            # --- Queries attend to detections ---
+            # Create attention mask (True = ignore)
+            attn_mask = ~mask_t
 
-        fused_features = self.fusion_mlp(fused_features)
-        fused_features = self.norm_fusion(fused_features)
+            # Queries attend to detections
+            queries_det, _ = self.query_to_det_attention(
+                query=queries, key=det_t, value=det_t, key_padding_mask=attn_mask
+            )
+
+            queries_det = self.norm_queries_det(queries_det)
+
+            # --- Combine query information ---
+            # Concatenate telemetry and detection query features
+            combined_queries = torch.cat(
+                [queries_tel, queries_det], dim=1
+            )  # [batch_size, 2*num_queries, embedding_dim]
+
+            # Expand context vector for batch size
+            context = self.context_vector.expand(
+                batch_size, -1, -1
+            )  # [batch_size, 1, embedding_dim]
+
+            # Final attention to combine information
+            final_features, _ = self.final_attention(
+                query=context, key=combined_queries, value=combined_queries
+            )
+
+            # Remove singleton dimension
+            final_features = final_features.squeeze(1)  # [batch_size, embedding_dim]
+
+            # Concatenate with original telemetry
+            final_features = torch.cat(
+                [tel_t.squeeze(1), final_features], dim=-1
+            )  # [batch_size, embedding_dim*2]
+
+            fused_features_list.append(final_features)
+
+        # Stack to get full sequence
+        fused_features = torch.stack(
+            fused_features_list, dim=1
+        )  # [batch_size, seq_len, embedding_dim*2]
+
+        # Final MLP and normalization
+        fused_features = self.output_mlp(fused_features)
+        fused_features = self.norm_output(fused_features)
 
         return fused_features
