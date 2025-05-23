@@ -160,7 +160,7 @@ class AttentionInputEncoder(InputEncoder):
         embedding_dim: int = 64,
         attention_num_heads: int = 4,
         dropout_prob: float = 0.1,
-        max_detections: int = 10,
+        max_detections: int = 12,
         max_seq_length: int = 20,
     ):
         super().__init__()
