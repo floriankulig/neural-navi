@@ -9,6 +9,51 @@ import torch
 import torch.nn as nn
 
 
+# ====================================
+# Shared Detection Aggregation Utilities
+# ====================================
+
+
+def aggregate_detections(
+    detections: torch.Tensor, mask: torch.Tensor, method: str = "mean"
+) -> torch.Tensor:
+    """
+    Aggregate object detections using the specified method.
+
+    Args:
+        detections: Tensor of shape (..., max_detections, embedding_dim)
+        mask: Boolean mask of shape (..., max_detections)
+        method: Aggregation method ('mean', 'max', 'attention_weighted')
+
+    Returns:
+        Aggregated detections of shape (..., embedding_dim)
+    """
+    if method == "mean":
+        # Mean pooling considering only valid detections
+        masked_detections = detections * mask.unsqueeze(-1)
+        detection_sum = masked_detections.sum(dim=-2)  # Sum along max_detections
+        valid_count = mask.sum(dim=-1, keepdim=True).clamp(
+            min=1
+        )  # Count valid, avoid div by zero
+        return detection_sum / valid_count
+
+    elif method == "max":
+        # Max pooling considering only valid detections
+        masked_detections = detections.clone()
+        masked_detections[~mask.unsqueeze(-1).expand_as(masked_detections)] = float(
+            "-inf"
+        )
+        return torch.max(masked_detections, dim=-2)[0]
+
+    else:
+        raise ValueError(f"Unknown aggregation method: {method}")
+
+
+# ====================================
+# Fusion Module Implementations
+# ====================================
+
+
 class SimpleConcatenationFusion(FusionModule):
     """
     Simple fusion through aggregation of object detections and concatenation with telemetry.
@@ -48,44 +93,6 @@ class SimpleConcatenationFusion(FusionModule):
         if aggregation_method == "mean":
             self.norm_detection = nn.LayerNorm(embedding_dim)
 
-    def _aggregate_detections(self, detections, mask):
-        """
-        Aggregate object detections using the specified method.
-
-        Args:
-          detections: Tensor of shape (batch_size, seq_len, max_detections, embedding_dim)
-          mask: Boolean mask of shape (batch_size, seq_len, max_detections)
-
-        Returns:
-          Aggregated detections of shape (batch_size, seq_len, embedding_dim)
-        """
-        batch_size, seq_len, max_detections, embedding_dim = detections.shape
-
-        if self.aggregation_method == "mean":
-            # Mean pooling considering only valid detections
-            # Replace masked (invalid) values with zeros
-            masked_detections = detections * mask.unsqueeze(-1)
-
-            # Sum and divide by number of valid detections (avoid div by zero)
-            detection_sum = masked_detections.sum(dim=2)  # Sum along max_detections
-            valid_count = mask.sum(dim=2, keepdim=True).clamp(
-                min=1
-            )  # Count valid, avoid div by zero
-            return detection_sum / valid_count
-
-        elif self.aggregation_method == "max":
-            # Max pooling considering only valid detections
-            # Replace masked (invalid) values with large negative values
-            masked_detections = detections.clone()
-            masked_detections[~mask.unsqueeze(-1).expand_as(masked_detections)] = float(
-                "-inf"
-            )
-
-            # Max along detection dimension
-            return torch.max(masked_detections, dim=2)[0]
-        else:
-            raise ValueError(f"Unknown aggregation method: {self.aggregation_method}")
-
     def forward(self, encoded_inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
         """
         Forward pass through the SimpleConcatenationFusion.
@@ -105,7 +112,9 @@ class SimpleConcatenationFusion(FusionModule):
         mask = encoded_inputs["detection_mask"]
 
         # Aggregate detections
-        aggregated_detections = self._aggregate_detections(detections, mask)
+        aggregated_detections = aggregate_detections(
+            detections, mask, self.aggregation_method
+        )
 
         if self.aggregation_method == "attention":
             aggregated_detections = self.norm_detection(aggregated_detections)
@@ -278,6 +287,10 @@ class ObjectQueryFusion(FusionModule):
     the information. This allows the model to focus on specific aspects of the
     driving scene in a more flexible way.
 
+    Key improvements:
+    - Uses aggregated detections for residual connection (more valuable information)
+    - Concatenates telemetry + query_output + aggregated_detections for richer representation
+
     Args:
       embedding_dim (int): Dimensionality of the input feature vectors
       num_queries (int): Number of specialized object queries
@@ -335,9 +348,10 @@ class ObjectQueryFusion(FusionModule):
         self.norm_queries_det = nn.LayerNorm(embedding_dim)
         self.norm_final = nn.LayerNorm(embedding_dim)
 
-        # MLP for final projection
+        # MLP for final projection - updated for 3x embedding_dim input
+        # (telemetry + query_output + aggregated_detections)
         self.output_mlp = nn.Sequential(
-            nn.Linear(embedding_dim * 2, self.output_dim),
+            nn.Linear(embedding_dim * 3, self.output_dim),
             nn.ReLU(),
             nn.Dropout(dropout_prob),
         )
@@ -346,7 +360,7 @@ class ObjectQueryFusion(FusionModule):
 
     def forward(self, encoded_inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
         """
-        Forward pass through the ObjectQueryFusion.
+        Forward pass through the ObjectQueryFusion with vectorized processing.
 
         Args:
           encoded_inputs (dict): Dictionary with encoded features
@@ -363,73 +377,85 @@ class ObjectQueryFusion(FusionModule):
         mask = encoded_inputs["detection_mask"]
 
         batch_size, seq_len, embedding_dim = telemetry.shape
+        _, _, max_detections, _ = detections.shape
 
-        # Process each timestep separately
-        fused_features_list = []
+        print(f"[ObjectQueryFusion] Input shapes:")
+        print(f"  telemetry: {telemetry.shape}")
+        print(f"  detections: {detections.shape}")
+        print(f"  mask: {mask.shape}")
 
-        for t in range(seq_len):
-            # Get features for this timestep
-            tel_t = telemetry[:, t]  # [batch_size, embedding_dim]
-            det_t = detections[:, t]  # [batch_size, max_detections, embedding_dim]
-            mask_t = mask[:, t]  # [batch_size, max_detections]
+        # === Vectorized Processing (all timesteps at once) ===
 
-            # Expand queries for batch size
-            queries = self.object_queries.expand(
-                batch_size, -1, -1
-            )  # [batch_size, num_queries, embedding_dim]
+        # Reshape for batch processing: [B*T, ...]
+        tel_flat = telemetry.view(batch_size * seq_len, embedding_dim)  # [B*T, D]
+        det_flat = detections.view(
+            batch_size * seq_len, max_detections, embedding_dim
+        )  # [B*T, N, D]
+        mask_flat = mask.view(batch_size * seq_len, max_detections)  # [B*T, N]
 
-            # --- Queries attend to telemetry ---
-            # Reshape telemetry for attention
-            tel_t = tel_t.unsqueeze(1)  # [batch_size, 1, embedding_dim]
+        # Expand queries for all timesteps at once
+        queries = self.object_queries.expand(
+            batch_size * seq_len, -1, -1
+        )  # [B*T, num_queries, embedding_dim]
 
-            # Queries attend to telemetry
-            queries_tel, _ = self.query_to_tel_attention(
-                query=queries, key=tel_t, value=tel_t
-            )
+        # --- Queries attend to telemetry (vectorized) ---
+        tel_flat_unsqueezed = tel_flat.unsqueeze(1)  # [B*T, 1, D]
 
-            queries_tel = self.norm_queries_tel(queries_tel)
+        queries_tel, _ = self.query_to_tel_attention(
+            query=queries, key=tel_flat_unsqueezed, value=tel_flat_unsqueezed
+        )
 
-            # --- Queries attend to detections ---
-            # Create attention mask (True = ignore)
-            attn_mask = ~mask_t
+        # Add residual connection and normalization
+        queries_tel = queries + queries_tel  # Residual connection
+        queries_tel = self.norm_queries_tel(queries_tel)
 
-            # Queries attend to detections
-            queries_det, _ = self.query_to_det_attention(
-                query=queries, key=det_t, value=det_t, key_padding_mask=attn_mask
-            )
+        # --- Queries attend to detections (vectorized) ---
+        attn_mask = ~mask_flat  # [B*T, N] (True = ignore)
 
-            queries_det = self.norm_queries_det(queries_det)
+        queries_det, _ = self.query_to_det_attention(
+            query=queries, key=det_flat, value=det_flat, key_padding_mask=attn_mask
+        )
 
-            # --- Combine query information ---
-            # Concatenate telemetry and detection query features
-            combined_queries = torch.cat(
-                [queries_tel, queries_det], dim=1
-            )  # [batch_size, 2*num_queries, embedding_dim]
+        # Add residual connection and normalization
+        queries_det = queries + queries_det  # Residual connection
+        queries_det = self.norm_queries_det(queries_det)
 
-            # Expand context vector for batch size
-            context = self.context_vector.expand(
-                batch_size, -1, -1
-            )  # [batch_size, 1, embedding_dim]
+        # --- Combine query information ---
+        combined_queries = torch.cat(
+            [queries_tel, queries_det], dim=1
+        )  # [B*T, 2*num_queries, embedding_dim]
 
-            # Final attention to combine information
-            final_features, _ = self.final_attention(
-                query=context, key=combined_queries, value=combined_queries
-            )
+        # Expand context vector for all timesteps
+        context = self.context_vector.expand(
+            batch_size * seq_len, -1, -1
+        )  # [B*T, 1, embedding_dim]
 
-            # Remove singleton dimension
-            final_features = final_features.squeeze(1)  # [batch_size, embedding_dim]
+        # Final attention to combine information
+        final_features, _ = self.final_attention(
+            query=context, key=combined_queries, value=combined_queries
+        )
 
-            # Concatenate with original telemetry
-            final_features = torch.cat(
-                [tel_t.squeeze(1), final_features], dim=-1
-            )  # [batch_size, embedding_dim*2]
+        # Remove singleton dimension
+        final_features = final_features.squeeze(1)  # [B*T, embedding_dim]
 
-            fused_features_list.append(final_features)
+        # Aggregate detections for more valuable residual connection
+        aggregated_detections = aggregate_detections(
+            det_flat, mask_flat, method="mean"
+        )  # [B*T, D]
 
-        # Stack to get full sequence
-        fused_features = torch.stack(
-            fused_features_list, dim=1
-        )  # [batch_size, seq_len, embedding_dim*2]
+        # Add residual connection with aggregated detections (richer information than just telemetry)
+        final_features = final_features + aggregated_detections  # Residual connection
+        final_features = self.norm_final(final_features)
+
+        # Concatenate telemetry, processed features, and aggregated detections for richer representation
+        final_features = torch.cat(
+            [tel_flat, final_features, aggregated_detections], dim=-1
+        )  # [B*T, embedding_dim*3]
+
+        # Reshape back to sequence format
+        fused_features = final_features.view(
+            batch_size, seq_len, embedding_dim * 3
+        )  # [B, T, embedding_dim*3]
 
         # Final MLP and normalization
         fused_features = self.output_mlp(fused_features)

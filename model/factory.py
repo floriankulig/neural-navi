@@ -137,7 +137,7 @@ if __name__ == "__main__":
         # Architekturtypen
         "encoder_type": "simple",  # "simple" oder "attention"
         # "fusion_type": "cross_attention",  # "concat", "query" oder "cross_attention"
-        "fusion_type": "cross_attention",  # "concat", "query" oder  "cross_attention"
+        "fusion_type": "query",  # "concat", "query" oder  "cross_attention"
         "decoder_type": "transformer",  # "lstm" oder "transformer"
         # Allgemeine Parameter
         "embedding_dim": 64,
