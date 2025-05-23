@@ -122,17 +122,18 @@ class SimpleConcatenationFusion(FusionModule):
 
 class CrossModalAttentionFusion(FusionModule):
     """
-    Fusion with Cross-Modal Attention mechanism for individual object attention.
+    Fusion with unidirectional Cross-Modal Attention and Residual Connection.
 
-    Uses Multi-Head Attention to allow telemetry data to extract relevant
-    information from individual object detections and vice versa.
+    Uses Multi-Head Attention where telemetry queries which object detections
+    are relevant for the current driving situation.
+    Includes a residual connection around the fusion MLP for improved gradient flow.
 
     Args:
-      embedding_dim (int): Dimensionality of the input feature vectors
-      num_heads (int): Number of attention heads
-      output_dim (int, optional): Dimensionality of the output vector.
-        Default is embedding_dim * 2.
-      dropout_prob (float): Dropout probability
+        embedding_dim (int): Dimensionality of the input feature vectors
+        num_heads (int): Number of attention heads
+        output_dim (int, optional): Dimensionality of the output vector
+        dropout_prob (float): Dropout probability
+        use_attention_weights (bool): Whether to use attention weights for additional features
     """
 
     def __init__(
@@ -142,6 +143,7 @@ class CrossModalAttentionFusion(FusionModule):
         output_dim: Optional[int] = None,
         dropout_prob: float = 0.1,
         max_detections: int = 12,
+        use_attention_weights: bool = False,
     ):
         super().__init__()
 
@@ -153,6 +155,7 @@ class CrossModalAttentionFusion(FusionModule):
 
         self.embedding_dim = embedding_dim
         self.output_dim = output_dim or embedding_dim * 2
+        self.use_attention_weights = use_attention_weights
 
         # Telemetry -> Detections Attention
         self.tel_to_det_attention = nn.MultiheadAttention(
@@ -162,41 +165,48 @@ class CrossModalAttentionFusion(FusionModule):
             batch_first=True,
         )
 
-        # Layernorms
-        self.norm_tel_attended = nn.LayerNorm(embedding_dim)
+        # Layernorm for attended features
+        self.norm_relevant_detections = nn.LayerNorm(embedding_dim)
 
-        # MLP for embedding detections as a single vector
-        self.det_mlp = nn.Sequential(
-            nn.Linear(embedding_dim * max_detections, embedding_dim),
-            nn.ReLU(),
-            nn.Dropout(dropout_prob),
-        )
-        self.norm_det_mlp = nn.LayerNorm(embedding_dim)
+        # Calculate fusion input dimension
+        if use_attention_weights:
+            # Attention weights can tell us about object importance distribution
+            self.attention_processor = nn.Sequential(
+                nn.Linear(max_detections, embedding_dim // 2),
+                nn.ReLU(),
+                nn.Dropout(dropout_prob),
+            )
+            fusion_input_dim = embedding_dim * 2 + embedding_dim // 2
+        else:
+            fusion_input_dim = embedding_dim * 2  # telemetry + relevant_detections
 
-        # MLP for fusion of attention results
-        fusion_input_dim = embedding_dim * 3  # Default for unidirectional attention
+        self.fusion_input_dim = fusion_input_dim
 
+        # MLP for final fusion
         self.fusion_mlp = nn.Sequential(
             nn.Linear(fusion_input_dim, self.output_dim),
             nn.ReLU(),
             nn.Dropout(dropout_prob),
         )
 
+        # Residual connection projection (if dimensions don't match)
+        if fusion_input_dim != self.output_dim:
+            self.residual_projection = nn.Linear(fusion_input_dim, self.output_dim)
+        else:
+            self.residual_projection = nn.Identity()
+
+        # Layer normalization after residual connection
         self.norm_fusion = nn.LayerNorm(self.output_dim)
 
     def forward(self, encoded_inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
         """
-        Forward pass through the CrossModalAttentionFusion.
+        Forward pass through the CrossModalAttentionFusion with residual connection.
 
         Args:
           encoded_inputs (dict): Dictionary with encoded features
-            "telemetry_features": (batch_size, seq_len, embedding_dim)
-            "detection_features": (batch_size, seq_len, max_detections, embedding_dim)
-            "detection_mask": (batch_size, seq_len, max_detections)
 
         Returns:
-          torch.Tensor: Fused features
-            Shape: (batch_size, seq_len, output_dim)
+          torch.Tensor: Fused features (batch_size, seq_len, output_dim)
         """
         telemetry = encoded_inputs[
             "telemetry_features"
@@ -209,52 +219,51 @@ class CrossModalAttentionFusion(FusionModule):
         batch_size, seq_len, embedding_dim = telemetry.shape
         _, _, max_detections, _ = detections.shape
 
-        # Process each timestep separately since we need to handle the object dimension
-        tel_attended_list = []
+        # Process each timestep
+        fused_list = []
 
         for t in range(seq_len):
             # Get features for this timestep
-            tel_t = telemetry[:, t]  # [batch_size, embedding_dim]
+            tel_t = telemetry[:, t].unsqueeze(1)  # [batch_size, 1, embedding_dim]
             det_t = detections[:, t]  # [batch_size, max_detections, embedding_dim]
             mask_t = mask[:, t]  # [batch_size, max_detections]
 
-            # Create attention mask (True = ignore)
+            # Attention mask (True = ignore)
             attn_mask = ~mask_t
 
-            # --- Telemetry attends to Detections ---
-            # Reshape telemetry for attention (1 for all the detections)
-            tel_t = tel_t.unsqueeze(1)  # [batch_size, 1, embedding_dim]
-
-            # Apply attention: telemetry (query) attends to detections (key, value) -> returns interesting detections
-            tel_attended_t, _ = self.tel_to_det_attention(
+            # Telemetry queries relevant detections
+            relevant_dets, attn_weights = self.tel_to_det_attention(
                 query=tel_t, key=det_t, value=det_t, key_padding_mask=attn_mask
             )
 
-            # Remove singleton dimension
-            tel_attended_t = tel_attended_t.squeeze(1)  # [batch_size, embedding_dim]
-            tel_attended_list.append(tel_attended_t)
+            relevant_dets = relevant_dets.squeeze(1)  # [batch_size, embedding_dim]
+            relevant_dets = self.norm_relevant_detections(relevant_dets)
 
-            # --- TODO Optional: Detections attend to Telemetry (bidirectional) ---
+            # Concatenate telemetry with relevant detections
+            features_to_fuse = [tel_t.squeeze(1), relevant_dets]
 
-        # Stack to get full sequence
-        tel_attended = torch.stack(
-            tel_attended_list, dim=1
-        )  # [batch_size, seq_len, embedding_dim]
-        tel_attended = self.norm_tel_attended(tel_attended)
+            # Optionally process attention weights
+            if self.use_attention_weights:
+                # attn_weights shape: [batch_size, 1, max_detections]
+                attn_features = self.attention_processor(attn_weights.squeeze(1))
+                features_to_fuse.append(attn_features)
 
-        # --- Add the detections as a residual connection ---
-        detections_seqflattened = detections.view(
-            batch_size, seq_len, max_detections * embedding_dim
-        )  # [batch_size, seq_len, max_detections * embedding_dim]
-        detections_residual = self.det_mlp(detections_seqflattened)
-        detections_residual = self.norm_det_mlp(detections_residual)
+            # Concatenate all features
+            fused_input_t = torch.cat(features_to_fuse, dim=-1)
 
-        fused_features = torch.cat(
-            [telemetry, detections_residual, tel_attended], dim=-1
-        )
+            fused_list.append(fused_input_t)
 
-        # Final MLP and normalization
-        fused_features = self.fusion_mlp(fused_features)
+        # Stack along the time axis to get full sequence
+        fused_inputs = torch.stack(fused_list, dim=1)
+
+        # Apply fusion MLP
+        fused_output = self.fusion_mlp(fused_inputs)
+
+        # Apply residual connection
+        residual = self.residual_projection(fused_inputs)
+        fused_features = fused_output + residual
+
+        # Final normalization after residual connection
         fused_features = self.norm_fusion(fused_features)
 
         return fused_features

@@ -57,7 +57,7 @@ def create_model_variant(config: Dict[str, Any]) -> BrakingPredictionBaseModel:
             embedding_dim=config.get("embedding_dim", 64),
             attention_num_heads=config.get("attention_num_heads", 4),
             dropout_prob=config.get("dropout_prob", 0.1),
-            max_detections=config.get("max_detections", 10),
+            max_detections=config.get("max_detections", 12),
             max_seq_length=config.get("max_seq_length", 20),
         )
     else:
@@ -79,6 +79,7 @@ def create_model_variant(config: Dict[str, Any]) -> BrakingPredictionBaseModel:
             output_dim=config.get("fusion_output_dim", None),
             dropout_prob=config.get("dropout_prob", 0.1),
             max_detections=config.get("max_detections", 12),
+            use_attention_weights=config.get("use_attention_weights", False),
         )
     elif fusion_type == "query":
         fusion = ObjectQueryFusion(
@@ -136,7 +137,7 @@ if __name__ == "__main__":
         # Architekturtypen
         "encoder_type": "simple",  # "simple" oder "attention"
         # "fusion_type": "cross_attention",  # "concat", "query" oder "cross_attention"
-        "fusion_type": "concat",  # "concat", "query" oder  "cross_attention"
+        "fusion_type": "cross_attention",  # "concat", "query" oder  "cross_attention"
         "decoder_type": "transformer",  # "lstm" oder "transformer"
         # Allgemeine Parameter
         "embedding_dim": 64,
@@ -149,6 +150,7 @@ if __name__ == "__main__":
         "include_brake_force": False,
         "include_uncertainty": False,
         "bidirectional_fusion": False,
+        "use_attention_weights": True,
         "max_detections": 12,
         "max_seq_length": 20,
     }
