@@ -88,10 +88,31 @@ neural-navi/
 ├── jobs/                    # ⚡ SLURM scripts for cluster training
 ├── configs/                 # ⚙️ Global configuration files
 ├── data/                    # 💾 Data storage (gitignored)
-│   ├── recordings/          # Raw driving recordings
-│   ├── datasets/            # Processed datasets
-│   └── models/              # Trained model checkpoints
+│   └── ... see below
 └── Makefile                 # 🛠️ Development commands
+```
+
+### 📁 Data Directory Structure
+```
+data/                           # 💾 Data storage (gitignored)
+├── cache/                      # Temporary processing cache
+├── datasets/                   # Dataset storage
+│   ├── processed/              # Processed datasets ready for training
+│   │   ├── annotations/        # Annotated recording data
+│   │   ├── boxy_yolo_n1/       # Boxy dataset in YOLO format (1 class)
+│   │   └── nuimages_yolo/      # NuImages dataset in YOLO format
+│   ├── raw/                    # Raw dataset files
+│   ├── boxy_labels.json        # Boxy dataset labels
+│   ├── boxy_labels_val.json    # Boxy validation labels
+│   └── dataset.yaml            # YOLO dataset configuration
+├── models/                     # Trained model checkpoints
+│   ├── yolo_best.pt            # Best YOLO model checkpoint
+│   └── multimodal_*.pt         # Multimodal model checkpoints
+└── recordings/                 # Raw driving recordings
+    └── YYYY-MM-DD_HH-MM-SS/    # Recording sessions (timestamped)
+        ├── telemetry.csv       # OBD-II data with derived features
+        ├── annotations.csv     # YOLO detection results
+        └── *.jpg               # Camera frames
 ```
 
 ## 🎮 Usage Guide
