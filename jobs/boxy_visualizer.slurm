@@ -4,30 +4,36 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
 #SBATCH --time=01:00:00
+#SBATCH --output=boxy_visualizer-%j.out
+#SBATCH --error=boxy_visualizer-%j.out
 
-cd ..
-
-# Erstelle virtuelle Umgebung falls nicht vorhanden
+# Create virtual environment if it doesn't exist
 if [ ! -d "venv" ]; then
     python3 -m venv venv
 fi
 
-# Aktiviere virtuelle Umgebung
+# Activate virtual environment
 source venv/bin/activate
 
-# Sicherstellen, dass Abhängigkeiten installiert sind
-pip install numpy matplotlib seaborn opencv-python tqdm
+# Install visualization dependencies
+pip install numpy matplotlib seaborn opencv-python tqdm pandas
 
-# Verzeichnisse anlegen
-rm -rf metrics/boxy_visualizations
-mkdir -p metrics/boxy_visualizations
+# Create output directories
+rm -rf evaluation/boxy_visualizations
+mkdir -p evaluation/boxy_visualizations
 
-# Skript ausführen
-srun python3 -u metrics/boxy_visualizer.py \
-    --data_dir deep/data/boxy_yolo_n3 \
-    --output_dir metrics/boxy_visualizations \
+# Run visualization script (updated path and arguments)
+srun python3 -u evaluation/visualization.py \
+    --data_dir data/processed/boxy_yolo_n3 \
+    --output_dir evaluation/boxy_visualizations \
     --sample_size 50000 \
     --heatmap_resolution 800 \
     --img_width 1232 \
     --img_height 1028 \
     --show_examples 5
+
+# Deactivate virtual environment
+deactivate
+
+echo "Boxy visualization completed successfully!"
+echo "Results saved to: evaluation/boxy_visualizations"

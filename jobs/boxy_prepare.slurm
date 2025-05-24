@@ -1,27 +1,27 @@
 #!/bin/bash
-#SBATCH --job-name=inf22086_boxy_prepare  # Ersetze #USERNAME mit deinem LDAP-Namen
-#SBATCH --gres=gpu:0                        # Keine GPUs anfordern für CPU-Task
+#SBATCH --job-name=inf22086_boxy_prepare
+#SBATCH --gres=gpu:0                        # No GPUs needed for CPU task
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
 #SBATCH --time=06:00:00
 #SBATCH --output=boxy_prepare-%j.out
 #SBATCH --error=boxy_prepare-%j.out
 
-# Erstelle virtuelle Umgebung falls nicht vorhanden
+# Create virtual environment if it doesn't exist
 if [ ! -d "venv" ]; then
     python3 -m venv venv
 fi
 
-# Aktiviere virtuelle Umgebung
+# Activate virtual environment
 source venv/bin/activate
 
-# Installiere Requirements falls nötig
-# pip install -r ../requirements.txt
+# Install requirements if needed
+pip install -r requirements.txt
 
-# Führe das Skript aus
-srun python3 -u boxy_prepare.py
+# Run the dataset preparation script (updated path)
+srun python3 -u training/datasets/boxy_preparation.py
 
-# Deaktiviere virtuelle Umgebung
+# Deactivate virtual environment
 deactivate
 
 echo "Boxy dataset preparation completed successfully!"

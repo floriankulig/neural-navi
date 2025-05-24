@@ -1,25 +1,26 @@
 #!/bin/bash
-#SBATCH --job-name=inf22086_val_yolo  # Ersetze #USERNAME mit deinem LDAP-Namen
-#SBATCH --gres=gpu:1                        # 1 GPU anfordern
+#SBATCH --job-name=inf22086_val_yolo
+#SBATCH --gres=gpu:1                        # 1 GPU for validation
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=24G
 #SBATCH --time=01:00:00
 #SBATCH --output=val_yolo-%j.out
 #SBATCH --error=val_yolo-%j.out
 
-# Erstelle virtuelle Umgebung falls nicht vorhanden
+# Create virtual environment if it doesn't exist
 if [ ! -d "venv" ]; then
     python3 -m venv venv
 fi
 
-# Aktiviere virtuelle Umgebung
+# Activate virtual environment
 source venv/bin/activate
 
+# Install requirements
 pip install ultralytics torch torchvision torchaudio
 
-yolo val model=runs/detect/yolo12n3_skip/weights/last.pt data=deep/data/dataset_nc3_skip.yaml imgsz=704 batch=48 device=-1
+yolo val model=data/models/yolo/yolo12n1.pt data=data/datasets/dataset_nc1_hard.yaml imgsz=704 batch=48 device=-1
 
-# Deaktiviere virtuelle Umgebung
+# Deactivate virtual environment
 deactivate
 
-echo "YOLO Val completed successfully!"
+echo "YOLO validation completed successfully!"

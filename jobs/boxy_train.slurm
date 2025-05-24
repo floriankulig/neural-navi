@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=inf22086_yolo12n_boxy_train
-#SBATCH --gres=gpu:3   # Use GPUS env var or default to 4
+#SBATCH --gres=gpu:3   # Use 3 GPUs
 #SBATCH --cpus-per-task=12
 #SBATCH --mem=40G
 #SBATCH --time=12:00:00
@@ -19,7 +19,9 @@ source venv/bin/activate
 pip install ultralytics torch torchvision torchaudio
 
 # Run training with parameters
-srun python3 -u boxy_train.py
+srun python3 -u training/yolo/train_boxy.py
 
 # Deactivate virtual environment
 deactivate
+
+echo "YOLO training completed successfully!"
