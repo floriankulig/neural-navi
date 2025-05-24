@@ -1,7 +1,7 @@
 # Makefile for neural-navi project
-# All scripts located in scripts/ directory for clean organization
+# Scripts located in root directory, SLURM jobs in /jobs
 
-.PHONY: help install record detect prepare-boxy train-yolo-boxy train-multimodal evaluate clean
+.PHONY: help install record detect prepare-boxy train-yolo-boxy evaluate clean
 
 # Default target
 help:
@@ -22,13 +22,10 @@ help:
 	@echo "  prepare-boxy     Prepare Boxy dataset for YOLO training"
 	@echo "  annotate         Run annotation script on recordings"
 	@echo ""
-	@echo "🧠 Training:"
-	@echo "  train-yolo-boxy     Train YOLO on Boxy dataset"
-	@echo "  train-yolo-nuimages Train YOLO on NuImages dataset (when ready)"
-	@echo "  train-multimodal    Train multimodal model (when ready)"
-	@echo ""
-	@echo "📈 Evaluation:"
-	@echo "  evaluate         Run evaluation and visualization"
+	@echo "🧠 Training (SLURM):"
+	@echo "  train-yolo-boxy     Submit YOLO training job to SLURM"
+	@echo "  val-yolo            Submit YOLO validation job"
+	@echo "  visualize-boxy      Submit Boxy visualization job"
 	@echo ""
 	@echo "🧹 Cleanup:"
 	@echo "  clean            Clean cache and temporary files"
@@ -37,65 +34,56 @@ help:
 install:
 	pip install -e .
 
-# Recording commands - now using scripts/
+# Recording commands
 record:
-	python scripts/record_drive.py --show-live --with-logs
+	python record_drive.py --show-live --with-logs
 
 record-quiet:
-	python scripts/record_drive.py --with-logs
+	python record_drive.py --with-logs
 
 record-debug:
-	python scripts/record_drive.py --show-live --with-logs --interval 1.0
+	python record_drive.py --show-live --with-logs --interval 1.0
 
 # Detection commands  
 detect:
-	python scripts/detect_vehicles.py --recordings data/recordings
+	python detect_vehicles.py --recordings data/recordings
 
 detect-conf:
-	python scripts/detect_vehicles.py --recordings data/recordings --conf 0.3
+	python detect_vehicles.py --recordings data/recordings --conf 0.3
 
 detect-model:
-	python scripts/detect_vehicles.py --recordings data/recordings --model yolo_best.pt
+	python detect_vehicles.py --recordings data/recordings --model yolo_best.pt
 
-# Dataset preparation - now using scripts/
+# Dataset preparation
 prepare-boxy:
-	python scripts/prepare_boxy.py
+	python training/datasets/boxy_preparation.py
 
 annotate:
-	python scripts/annotate_recordings.py
+	python training/datasets/annotation.py
 
-# Training commands - now using scripts/
+# SLURM training jobs
 train-yolo-boxy:
-	python scripts/train_yolo_boxy.py
+	sbatch jobs/boxy_train.slurm
 
-train-yolo-nuimages:
-	python scripts/train_yolo_nuimages.py
+val-yolo:
+	sbatch jobs/val_yolo.slurm
 
-train-multimodal:
-	python scripts/train_multimodal.py
+visualize-boxy:
+	sbatch jobs/boxy_visualizer.slurm
 
-train-multimodal-debug:
-	python scripts/train_multimodal.py --debug
+prepare-boxy-slurm:
+	sbatch jobs/boxy_prepare.slurm
 
-# Evaluation - now using scripts/
+# Evaluation
 evaluate:
-	python scripts/evaluate_model.py
-
-visualize:
-	python scripts/visualize_dataset.py
+	python evaluation/boxy_visualization.py
 
 # Development commands
-test:
-	python -m pytest tests/ -v
-
-test-fast:
-	python -m pytest tests/ -x -v --tb=short
-
 format:
-	black src/ training/ evaluation/ scripts/ *.py
+	black src/ training/ evaluation/ *.py
 
 lint:
-	flake8 src/ training/ evaluation/ scripts/ *.py
+	flake8 src/ training/ evaluation/ *.py
 
 type-check:
 	mypy src/
@@ -129,8 +117,8 @@ status:
 	@echo "📊 Neural-Navi Project Status:"
 	@echo "Recordings: $(shell find data/recordings -name "*.jpg" 2>/dev/null | wc -l) images"
 	@echo "YOLO Models: $(shell find data/models -name "*.pt" 2>/dev/null | wc -l) checkpoints"
-	@echo "Datasets: $(shell ls -d data/datasets/*/ 2>/dev/null | wc -l) prepared"
-	@echo "Scripts: $(shell ls scripts/*.py 2>/dev/null | wc -l) available"
+	@echo "SLURM Jobs: $(shell ls jobs/*.slurm 2>/dev/null | wc -l) available"
+	@echo "Training Scripts: $(shell ls training/*/*.py 2>/dev/null | wc -l) available"
 
 # Quick aliases for common tasks
 r: record
@@ -141,12 +129,11 @@ h: help
 # Advanced workflow commands
 full-pipeline-boxy:
 	@echo "🚀 Running full Boxy pipeline..."
-	make prepare-boxy
+	make prepare-boxy-slurm
 	make train-yolo-boxy
-	make evaluate
+	make val-yolo
 
-experiment-quick:
-	@echo "🧪 Quick experiment run..."
-	make record-debug
-	make detect
-	make annotate
+# Cluster monitoring
+monitor-jobs:
+	@echo "📊 SLURM Job Status:"
+	squeue -u $$USER

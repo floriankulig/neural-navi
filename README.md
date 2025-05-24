@@ -1,34 +1,24 @@
-### 🎯 Script Organization
+# Neural-Navi
 
-All entry points are organized in root folder for clean execution:
-```bash
-make record          # → python record_drive.py --show-live 
-make detect          # → python detect_vehicles.py
-```
+**Multimodal Machine Learning Approach for Real-Time Critical Driving Situation Recognition in Preventive Driver Assistance Systems**
 
-**Benefits:**
-- Clean project structure
-- Simple execution via Makefile
-- Professional command-line tools after installation
-- Easy to find and modify entry points# neural-navi
-
-Neural Navi is an Intelligent Decision Support System (IDSS) that analyzes driving and camera data to provide insights and recommendations to drivers. The system is designed to help drivers make better decisions on the road and improve their driving skills.
+Neural-Navi is a research project that combines camera data and vehicle telemetry to detect critical driving situations in real-time. The system aims to predict braking events 1-5 seconds in advance while considering realistic hardware constraints.
 
 ## 🚀 Quick Start
 
 ### Installation
 
-1. **Clone and navigate to the project:**
+1. **Clone repository:**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/floriankulig/neural-navi.git
    cd neural-navi
    ```
 
 2. **Create virtual environment:**
    ```bash
-   python -m venv venv --system-site-packages  # Raspberry Pi OS (keeps preinstalled Picamera2)
+   python -m venv venv --system-site-packages  # Raspberry Pi OS (keeps Picamera2)
    # or
-   python -m venv venv   # Windows/Mac
+   python -m venv venv   # Windows/Mac/Linux
    ```
 
 3. **Activate virtual environment:**
@@ -38,74 +28,70 @@ Neural Navi is an Intelligent Decision Support System (IDSS) that analyzes drivi
    .\venv\Scripts\activate   # Windows
    ```
 
-4. **Install the package:**
+4. **Install dependencies:**
    ```bash
-   pip install -e .  # Development installation
+   pip install -e .
    ```
 
-### Quick Usage
+### Basic Usage
 
 #### Record driving data:
 ```bash
-# Using make (recommended)
+# Using Makefile (recommended)
 make record
 
-# Using script directly  
-python scripts/record_drive.py --show-live --with-logs
-
-```
-
-#### Train a model:
-```bash
-# Train YOLO model on Boxy dataset
-make train-yolo-boxy
-# or: python scripts/train_yolo_boxy.py
-
-# Train multimodal model (when ready)
-make train-multimodal
-# or: python scripts/train_multimodal.py --config training/multimodal/configs/base_config.yaml
+# Direct execution
+python record_drive.py --show-live --with-logs
 ```
 
 #### Detect vehicles in recordings:
 ```bash
-# Using make
+# Interactive viewer
 make detect
+# or: python detect_vehicles.py --recordings data/recordings
+```
 
-# Using script directly
-python scripts/detect_vehicles.py --recordings data/recordings
+#### Train models:
+```bash
+# YOLO on Boxy dataset (via SLURM)
+sbatch jobs/boxy_train.slurm
+
+# Multimodal model (planned)
+python training/multimodal/train_multimodal.py
 ```
 
 ## 📁 Project Structure
 
 ```
 neural-navi/
-├── scripts/                 # 🎯 Entry points - run everything from here
-│   ├── record_drive.py      # Record driving sessions
-│   ├── detect_vehicles.py   # Vehicle detection in recordings
-│   ├── train_yolo_boxy.py   # Train YOLO on Boxy dataset
-│   └── train_multimodal.py  # Train multimodal models
+├── record_drive.py          # 🎯 Driving data recording
+├── detect_vehicles.py       # 🔍 Vehicle detection in recordings
 │
-├── src/                     # 🔧 Core application code
-│   ├── recording/           # Data capture (camera, telemetry, drive recorder)
+├── src/                     # 🔧 Core Application Code
+│   ├── recording/           # Data acquisition (camera, telemetry, DriveRecorder)
 │   ├── processing/          # Data preprocessing & feature engineering
 │   │   ├── features/        # Derived features (gear, brake force)
-│   │   └── detection/       # YOLO-based object detection utilities
-│   ├── model/              # Neural network architectures
+│   │   └── detection/       # YOLO-based object detection
+│   ├── model/               # Neural network architectures
+│   │   ├── encoder.py       # Input encoders (Simple, Attention)
+│   │   ├── fusion.py        # Fusion modules (Concat, Cross-Attention, Query)
+│   │   ├── decoder.py       # Output decoders (LSTM, Transformer)
+│   │   └── factory.py       # Model factory for different configurations
 │   └── utils/               # Utilities (config, device setup, helpers)
 │
-├── training/                # 🧠 Training pipeline & experiments
-│   ├── datasets/            # Dataset preparation scripts
-│   ├── yolo/                # YOLO training (Boxy, NuImages)
-│   ├── multimodal/          # Multimodal model training
-│   └── slurm/               # SLURM scripts for cluster training
+├── training/                # 🧠 Training Pipeline & Experiments
+│   ├── datasets/            # Dataset preparation (Boxy, NuImages)
+│   ├── yolo/                # YOLO training for vehicle detection
+│   └── multimodal/          # Multimodal model training
 │
 ├── evaluation/              # 📊 Metrics, visualization & analysis
-├── configs/                 # ⚙️ Global configuration files  
+├── jobs/                    # ⚡ SLURM scripts for cluster training
+├── configs/                 # ⚙️ Global configuration files
 ├── data/                    # 💾 Data storage (gitignored)
 │   ├── recordings/          # Raw driving recordings
 │   ├── datasets/            # Processed datasets
 │   └── models/              # Trained model checkpoints
-└── tests/                   # 🧪 Unit tests
+└── Makefile                 # 🛠️ Development commands
 ```
 
 ## 🎮 Usage Guide
@@ -117,45 +103,42 @@ The DriveRecorder captures synchronized video and telemetry data:
 ```bash
 # Basic recording
 make record
-# or: python scripts/record_drive.py
+# or: python record_drive.py
 
 # With live preview and logging (default via make)
-python scripts/record_drive.py --show-live --with-logs
+python record_drive.py --show-live --with-logs
 
 # Custom capture interval (default: 0.5s = 2Hz)
-python scripts/record_drive.py --interval 0.25
+python record_drive.py --interval 0.25
 ```
 
 **Features:**
 - Simultaneous camera and OBD-II data capture
 - Automatic hardware detection (Raspberry Pi Camera vs USB webcam)
 - Synchronized timestamps for all data
-- Real-time feature calculation (gear estimation, brake force)
+- Real-time feature calculation (gear detection, brake force estimation)
 
 ### Training Models
 
 #### YOLO Vehicle Detection
 ```bash
 # Prepare Boxy dataset
-make prepare-boxy
-# or: python scripts/prepare_boxy.py
+python training/datasets/boxy_preparation.py
 
-# Train YOLO model
-make train-yolo-boxy
-# or: python scripts/train_yolo_boxy.py
+# YOLO training (SLURM)
+sbatch jobs/boxy_train.slurm
+
+# Local training (development)
+python training/yolo/train_boxy.py
 ```
 
-#### Multimodal Braking Prediction
+#### Multimodal Brake Prediction
 ```bash
-# Train with default config (when implemented)
-make train-multimodal
-# or: python scripts/train_multimodal.py
+# Training with default config (planned)
+python training/multimodal/train_multimodal.py
 
-# With custom config
-python scripts/train_multimodal.py --config training/multimodal/configs/experiment1.yaml
-
-# Debug mode (fast training)
-python scripts/train_multimodal.py --debug
+# With custom config (planned)
+python training/multimodal/train_multimodal.py --config configs/experiment1.yaml
 ```
 
 ### Vehicle Detection & Analysis
@@ -163,46 +146,41 @@ python scripts/train_multimodal.py --debug
 ```bash
 # Interactive vehicle detection viewer
 make detect
-# or: python scripts/detect_vehicles.py --recordings data/recordings
+# or: python detect_vehicles.py --recordings data/recordings
 
 # Adjust confidence threshold
-python scripts/detect_vehicles.py --recordings data/recordings --conf 0.3
+python detect_vehicles.py --recordings data/recordings --conf 0.3
 
 # Use custom model
-python scripts/detect_vehicles.py --model yolo_best.pt
+python detect_vehicles.py --model yolo_best.pt
 ```
 
 ## 🔧 Configuration
 
 ### Global Settings
-Edit `configs/default.yaml` for global settings:
+Edit `src/utils/config.py` for global settings:
 - Recording parameters (resolution, ROI, intervals)
 - OBD-II settings and calibration values
 - Vision model settings
-- Hardware optimization
+- Hardware optimizations
 
 ### Training Configurations
 Training configs organized by purpose:
 - `training/yolo/configs/` - YOLO-specific configs for different datasets
 - `training/multimodal/configs/` - Multimodal model configurations
-- `training/slurm/` - SLURM scripts for cluster training
-
-### Hardware-Specific Settings
-Configure for your hardware in `configs/hardware/`:
-- `raspberry_pi.yaml` - Optimized for Raspberry Pi
-- `desktop.yaml` - Desktop/laptop development
+- `jobs/` - SLURM scripts for cluster training
 
 ## 🧠 Model Architecture
 
-### Multimodal Braking Prediction
+### Multimodal Brake Prediction
 
-The core innovation is a modular architecture combining:
+The core innovation is a modular architecture combining the following components:
 
 1. **Input Encoders**
    - `SimpleInputEncoder`: Baseline with independent processing
    - `AttentionInputEncoder`: Advanced with self-attention mechanisms
 
-2. **Fusion Modules** 
+2. **Fusion Modules**
    - `SimpleConcatenationFusion`: Efficient concatenation-based fusion
    - `CrossModalAttentionFusion`: Advanced cross-modal attention
    - `ObjectQueryFusion`: DETR-inspired learnable queries
@@ -211,21 +189,40 @@ The core innovation is a modular architecture combining:
    - `LSTMOutputDecoder`: Sequential processing for temporal patterns
    - `TransformerOutputDecoder`: Parallel processing with attention
 
-### Configuration Example
-```yaml
-model:
-  encoder_type: "simple"           # simple | attention
-  fusion_type: "cross_attention"   # concat | cross_attention | query  
-  decoder_type: "lstm"            # lstm | transformer
-  prediction_horizons: [1, 3, 5]  # Predict braking 1s, 3s, 5s ahead
+### Systematic Architecture Evaluation
+
+**Modular Combinatorics for Ablation Studies:**
+```python
+# Systematic evaluation of all architecture combinations
+architectures = {
+    "encoders": ["simple", "attention"],
+    "fusion": ["concat", "cross_attention", "query"],
+    "decoders": ["lstm", "transformer"]
+}
+# → 2 × 3 × 2 = 12 architecture variants for comparison
+
+# Example configuration
+config = {
+    "encoder_type": "attention",        # simple | attention
+    "fusion_type": "cross_attention",   # concat | cross_attention | query  
+    "decoder_type": "lstm",            # lstm | transformer
+    "prediction_horizons": [1, 3, 5],  # Predict braking 1s, 3s, 5s ahead
+    "embedding_dim": 64,
+    "max_detections": 12,
+    "max_seq_length": 20
+}
+
+# Create model via Factory Pattern
+from src.model.factory import create_model_variant
+model = create_model_variant(config)
 ```
 
 ## 🔬 Research Context
 
 This project develops a **multimodal Machine Learning approach for real-time critical driving situation detection** as part of automotive AI research.
 
-### Key Research Questions:
-- How can we combine camera and vehicle telemetry data for improved prediction?
+### Central Research Questions:
+- How can camera and vehicle telemetry data be combined for improved predictions?
 - What are the computational constraints of real-time processing on embedded hardware?
 - How do different neural architectures perform under latency constraints?
 
@@ -235,86 +232,83 @@ This project develops a **multimodal Machine Learning approach for real-time cri
 - **Real-World Data**: Custom dataset from German Autobahn driving
 - **Synchronized Multimodal Capture**: Camera + OBD-II with <5ms synchronization
 
-## 🛠️ Development
+### Scientific Contributions:
 
-### Running Tests
+#### **OBD-II Reverse Engineering - Proprietary Data Extraction**
+- **Mode 22 Command Discovery**: Systematic exploration of proprietary diagnostic modes
+- **Custom Command Implementation**: `BRAKE_SIGNAL = OBDCommand("BRAKE_SIGNAL", ..., b"223F9F", ...)`
+- **Binary Signal Extraction**: Successful extraction of binary brake states from ECU data streams
+- **Cross-Validation**: Physical brake pedal actuations as ground truth
+
+#### **Systematic YOLO Hardware Performance Evaluation**
+- **Model Variant Benchmarking**: YOLOv12n/s/m/l/x performance matrix under real constraints
+- **Raspberry Pi 5 Baseline**: 80ms inference (YOLOv12n + OpenVINO) as hardware reality reference
+- **Memory-Latency Trade-offs**: Systematic analysis of parameter count vs. inference speed
+- **Production-Ready Metrics**: Realistic performance expectations for automotive deployment
+
+#### **Multimodal Architecture Innovation**
+- **Modular Design Philosophy**: Encoder/Fusion/Decoder combinatorics for systematic ablation studies
+- **Cross-Modal Attention**: Telemetry-guided object detection relevance scoring
+- **Temporal Sequence Modeling**: 1-5s prediction horizons with hardware-aware latency optimization
+
+## 🛠️ Development & Cluster Computing
+
+### Running SLURM Jobs
 ```bash
-# Run all tests
-python -m pytest tests/
+# Prepare Boxy dataset
+sbatch jobs/boxy_prepare.slurm
 
-# Run specific test category
-python -m pytest tests/test_recording/
-```
+# YOLO training
+sbatch jobs/boxy_train.slurm
 
-### Code Quality
-```bash
-# Format code
-black src/ training/ scripts/
+# YOLO validation
+sbatch jobs/val_yolo.slurm
 
-# Lint code  
-flake8 src/ training/ scripts/
-
-# Type checking
-mypy src/
+# Create visualizations
+sbatch jobs/boxy_visualizer.slurm
 ```
 
 ### Adding New Features
 
-1. **New Model Architecture**: Add to `src/models/`
+1. **New Model Architecture**: Add to `src/model/`
 2. **New Data Processing**: Add to `src/processing/`
-3. **New Training Script**: Add to `scripts/` with entry point and `training/` for logic
+3. **New Training Script**: Add to `training/` with corresponding SLURM job
 4. **New Evaluation Metrics**: Add to `evaluation/`
 
 ## 📊 Performance
 
 ### Hardware Requirements
-- **Minimum**: Raspberry Pi 4 (4GB RAM)
 - **Recommended**: Raspberry Pi 5 (8GB RAM)
-- **Development**: Any modern laptop/desktop
+- **Development**: Modern laptop/desktop (scripts optimized for 🍎 Apple Silicon Chips)
 
-### Latency Breakdown (Raspberry Pi 5)
+### Latency Breakdown (Raspberry Pi 5 8GB + OpenVINO)
 ```
-Component               Latency
-Camera Capture          ~5ms
-YOLO Inference         ~80ms (YOLOv12n + OpenVINO)
-Telemetry Processing    ~2ms
-Multimodal Model       ~TBD
-Decision Making         ~1ms
-Total Pipeline         ~90ms+
+Component                   Latency       Memory      Details
+─────────────────────────────────────────────────────────────────
+Camera Capture             ~5ms          ~10MB       PiCamera2 1080p
+YOLO Inference (YOLOv12n)  ~80ms        ~50MB        OpenVINO FP16/FP32
+YOLO Inference (YOLOv12s)  ~200ms       ~150MB       (extrapolated)
+Telemetry Processing       ~2ms          ~1MB        OBD-II + Features
+Multimodal Model           ~TBD          ~TBD        In Development
+Decision Making            ~1ms          ~1MB        Logic Layer
+─────────────────────────────────────────────────────────────────
+Total Pipeline (YOLOv12n)  ~90ms+        ~62MB       Real-Time Capable
 ```
-
-### Memory Usage
-- YOLO Model: ~50MB RAM
-- Multimodal Model: ~TBD
-- Recording Buffer: ~100MB
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes following the project structure
-4. Add tests for new functionality
-5. Commit your changes (`git commit -m 'Add amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🎯 Project Status
 
-- ✅ Data Recording System (Camera + OBD-II)
-- ✅ YOLO Vehicle Detection (Fine-tuned on Boxy dataset)
-- ✅ Feature Engineering (Gear detection, Brake force estimation)
-- ✅ Modular Model Architecture Design
-- 🔄 Multimodal Training Pipeline (In Progress)
-- ⏳ Real-time Inference Pipeline (Planned)
-- ⏳ Hardware Optimization (Planned)
+- ✅ **Data Recording System** (Camera + OBD-II)
+- ✅ **YOLO Vehicle Detection** (Finetuned on Boxy dataset)
+- ✅ **Feature Engineering** (Gear detection, brake force estimation)
+- ✅ **Modular Model Architecture** (Encoder/Fusion/Decoder)
+- ✅ **OBD-II Reverse Engineering** (Proprietary brake signal extraction)
+- 🔄 **Multimodal Training Pipeline** (In Progress)
+- ⏳ **Real-time Inference Pipeline** (Planned)
+- ⏳ **Hardware Optimization** (Planned)
 
-## 📧 Contact
+## 📄 License
 
-For questions about this research project, please open an issue or contact the development team.
+This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
