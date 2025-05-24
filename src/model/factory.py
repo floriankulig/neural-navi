@@ -4,24 +4,23 @@
 
 
 from typing import Any, Dict
-import sys
-from pathlib import Path
 import torch
+from pathlib import Path
+import sys
 
-# Add parent directory to path for imports from main project
+# Add project root to path for imports
 script_dir = Path(__file__).parent
-project_root = script_dir.parent
+project_root = script_dir.parent.parent  # Go up two levels: model/ -> src/ -> root/
 sys.path.insert(0, str(project_root))
 
-
-from model.decoder import LSTMOutputDecoder, TransformerOutputDecoder
-from model.encoder import AttentionInputEncoder, SimpleInputEncoder
-from model.fusion import (
+from src.model.encoder import AttentionInputEncoder, SimpleInputEncoder
+from src.model.fusion import (
     CrossModalAttentionFusion,
     ObjectQueryFusion,
     SimpleConcatenationFusion,
 )
-from model.model import BrakingPredictionBaseModel
+from src.model.decoder import LSTMOutputDecoder, TransformerOutputDecoder
+from src.model.base import BrakingPredictionBaseModel
 
 
 def create_model_variant(config: Dict[str, Any]) -> BrakingPredictionBaseModel:

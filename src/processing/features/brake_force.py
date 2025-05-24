@@ -1,10 +1,10 @@
-from utils.config import ACCERLERATOR_POS_MAX, ACCERLERATOR_POS_MIN
+from src.utils.config import ACCERLERATOR_POS_MAX, ACCERLERATOR_POS_MIN
 from obd import Async as AsyncOBDConnection, commands, OBDResponse
 from collections import deque
 import numpy as np
 import time
-from utils.helpers import numeric_or_none, normalize
-from processing.features.custom_commands import (
+from src.utils.helpers import numeric_or_none, normalize
+from src.processing.features.custom_commands import (
     BRAKE_SIGNAL,
 )
 

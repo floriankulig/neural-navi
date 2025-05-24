@@ -1,13 +1,13 @@
-from utils.config import ACCERLERATOR_POS_MAX, ACCERLERATOR_POS_MIN, DERIVED_VALUES
+from src.utils.config import ACCERLERATOR_POS_MAX, ACCERLERATOR_POS_MIN, DERIVED_VALUES
 import obd
 import serial.tools.list_ports
-from processing.features.custom_commands import (
+from src.processing.features.custom_commands import (
     BRAKE_SIGNAL,
 )
-from processing.features.brake_force import BrakeForceCalculator
-from processing.features.gear import GearCalculator
+from src.processing.features.brake_force import BrakeForceCalculator
+from src.processing.features.gear import GearCalculator
 import time
-from utils.helpers import normalize, numeric_or_none
+from src.utils.helpers import normalize, numeric_or_none
 from datetime import datetime
 
 CUSTOM_COMMANDS = [BRAKE_SIGNAL]

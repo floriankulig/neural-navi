@@ -2,17 +2,17 @@ import sys
 from pathlib import Path
 
 # Add src to path for imports
-PROJECT_ROOT = Path(__file__).parent.parent
+PROJECT_ROOT = Path(__file__).parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from recording.camera import Camera
-from utils.config import (
+from src.recording.camera import Camera
+from src.utils.config import (
     CAPTURE_INTERVAL,
     RECORDING_OUTPUT_PATH,
     TIME_FORMAT_FILES,
     TIME_FORMAT_LOG,
 )
-from recording.telemetry import TelemetryLogger
+from src.recording.telemetry import TelemetryLogger
 import time
 import os
 import csv

@@ -2,8 +2,15 @@
 # OutputDecoder Implementations
 # ====================================
 
+from pathlib import Path
+import sys
 
-from model.model import OutputDecoder
+# Add project root to path for imports
+script_dir = Path(__file__).parent
+project_root = script_dir.parent.parent  # Go up two levels: model/ -> src/ -> root/
+sys.path.insert(0, str(project_root))
+
+from src.model.base import OutputDecoder
 import torch
 import torch.nn as nn
 from typing import Dict, List

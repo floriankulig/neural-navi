@@ -3,13 +3,13 @@ import time
 import cv2
 import numpy as np
 
-from utils.config import (
+from src.utils.config import (
     DEFAULT_RESOLUTION,
     IMAGE_COMPRESSION_QUALITY,
     DEFAULT_IMAGE_FOCUS,
     DEFAULT_IMAGE_ROI,
 )
-from processing.image_processor import ImageProcessor
+from src.processing.image_processor import ImageProcessor
 
 
 class Camera:

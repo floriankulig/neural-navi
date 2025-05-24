@@ -1,7 +1,8 @@
 import cv2
 import numpy as np
 
-from utils.config import DEFAULT_IMAGE_ROI
+
+from src.utils.config import DEFAULT_IMAGE_ROI
 
 
 class ImageProcessor:

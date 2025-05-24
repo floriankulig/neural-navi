@@ -4,24 +4,21 @@
 Vehicle detector for DriveRecorder images using YOLO
 Optimized for Apple Silicon (M3)
 """
-import sys
-from pathlib import Path
-
-# Add src to path for imports
-PROJECT_ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(PROJECT_ROOT / "src"))
-
 
 import argparse
 from pathlib import Path
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-from utils.device import setup_device
+from src.utils.device import setup_device
 from ultralytics import YOLO
 
-from utils.config import DEFAULT_IMAGE_ROI, DEFAULT_VISION_MODEL, RECORDING_OUTPUT_PATH
-from processing.image_processor import ImageProcessor
+from src.utils.config import (
+    DEFAULT_IMAGE_ROI,
+    DEFAULT_VISION_MODEL,
+    RECORDING_OUTPUT_PATH,
+)
+from src.processing.image_processor import ImageProcessor
 
 
 def process_directory_interactive(
@@ -259,7 +256,8 @@ def main():
 
     # Load YOLOv11 model
     print(f"🔍 Loading {args.model} model...")
-    model = YOLO(args.model)
+    model_path = "data/models/yolo/" + args.model
+    model = YOLO(model_path)
     print("✅ Model loaded successfully.")
 
     # Get available timestamp directories

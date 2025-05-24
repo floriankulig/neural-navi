@@ -36,12 +36,12 @@ def main():
         # 'warmup_epochs': 4,
         # 'lr0': 0.0075,
         # 'cos_lr': True,
-        # Augmentations angepasst
-        "degrees": 6,  # Weniger, da Kamera fest montiert
+        # Augmentations adapted
+        "degrees": 6,  # Less, since camera is mounted fixed
         "perspective": 0.00025,  # Minimal
-        "mixup": 0.0,  # Aus - problematisch für kleine Objekte
-        "cutmix": 0.05,  # Aus - problematisch für kleine Objekte
-        "copy_paste": 0.1,  # Kann helfen!
+        "mixup": 0.0,  # Off - problematic for small objects
+        "cutmix": 0.05,  # Off - problematic for small objects
+        "copy_paste": 0.1,  # Can help!
         "close_mosaic": 10,
         "save_period": 5,
         "workers": 12,
