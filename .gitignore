@@ -1,25 +1,17 @@
-# Project Data
-/logs
-/plots
-/images
-
 # Testing Data
 *.jpg
 recordings/
 
-metrics/*.jpg
-metrics/*results*
-metrics/*/*.png
-metrics/*/*.html
-metrics/*/*.csv
+# Project Data
+data/datasets
 
-deep/*data*
-deep/nuimage*
-deep/boxy_raw
-deep/runs
-deep/*.pt
-deep/*.err
-deep/*.out
+evaluation/*.jpg
+evaluation/*results*
+evaluation/*/*.png
+evaluation/*/*.html
+evaluation/*/*.csv
+
+deep/datasets
 
 /runs
 

@@ -8,7 +8,9 @@ import matplotlib.pyplot as plt
 import time
 
 yolo_model_path = "yolo11n.pt"  # Pfad zum vortrainierten YOLOv11n-Modell
-output_path = "data/nuimages_yolo"
+output_path = (
+    "data/datasets/processed/nuimages"  # Pfad zum Ausgabeordner für das Dataset
+)
 
 # Überprüfen der verfügbaren Hardware
 print(f"PyTorch version: {torch.__version__}")
@@ -38,5 +40,5 @@ results = model.train(
     device=device,  # Verwendetes Gerät (mps, cuda, cpu)
     batch=-1,  # Batch-Größe,
     # patience=5,
-    resume=True
+    resume=True,
 )

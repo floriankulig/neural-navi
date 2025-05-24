@@ -3,7 +3,7 @@ Configuration constants for the Drive Recorder project.
 """
 
 # Paths
-RECORDING_OUTPUT_PATH = "recordings"
+RECORDING_OUTPUT_PATH = "data/recordings"
 
 # Time formats
 TIME_FORMAT_FILES = "%Y-%m-%d_%H-%M-%S"

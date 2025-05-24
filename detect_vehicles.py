@@ -1,20 +1,27 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Vehicle detector for DriveRecorder images using YOLOv11n
+Vehicle detector for DriveRecorder images using YOLO
 Optimized for Apple Silicon (M3)
 """
+import sys
+from pathlib import Path
+
+# Add src to path for imports
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+
 
 import argparse
 from pathlib import Path
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-from device import setup_device
+from utils.device import setup_device
 from ultralytics import YOLO
 
-from config import DEFAULT_IMAGE_ROI, DEFAULT_VISION_MODEL
-from imageprocessor import ImageProcessor
+from utils.config import DEFAULT_IMAGE_ROI, DEFAULT_VISION_MODEL, RECORDING_OUTPUT_PATH
+from processing.image_processor import ImageProcessor
 
 
 def process_directory_interactive(
@@ -222,7 +229,7 @@ def main():
     parser.add_argument(
         "--recordings",
         type=str,
-        default="recordings",
+        default=RECORDING_OUTPUT_PATH,
         help="Path to the recordings directory",
     )
     parser.add_argument(

@@ -1,7 +1,6 @@
 import os
 import platform
 import sys
-import importlib
 
 # Set environment variables for Apple Silicon before torch import
 is_mac = platform.system() == "Darwin"

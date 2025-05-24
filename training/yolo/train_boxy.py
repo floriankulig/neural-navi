@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+import sys
+from pathlib import Path
+
+# Add src and training to path for imports
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+sys.path.insert(0, str(PROJECT_ROOT / "training"))
+
 # -*- coding: utf-8 -*-
 """
 YOLOv12n Training Script for Boxy Dataset
