@@ -3,7 +3,9 @@
 recordings/
 
 # Project Data
-data/datasets
+data/datasets/raw
+data/datasets/processed
+data/datasets/*labels*
 
 evaluation/*.jpg
 evaluation/*results*
@@ -12,6 +14,7 @@ evaluation/*/*.html
 evaluation/*/*.csv
 
 deep/datasets
+deep/data
 
 /runs
 
