@@ -14,8 +14,8 @@ import shutil
 import subprocess
 import zipfile
 
-USE_SIDE_DETECTION = True
-SKIP_SMALL = True
+USE_SIDE_DETECTION = False
+SKIP_SMALL = False
 nc = 3 if USE_SIDE_DETECTION else 1
 classes = (
     ["vehicle.left", "vehicle.front", "vehicle.right"]
@@ -24,9 +24,9 @@ classes = (
 )
 
 # Define directories
-data_dir = "data"
-boxy_raw_dir = "boxy_raw"
-yolo_dir = os.path.join(data_dir, f"boxy_yolo_n{nc}{'_skip' if SKIP_SMALL else ''}")
+data_dir = "data/datasets"
+boxy_raw_dir = os.path.join(data_dir, "raw/boxy")
+yolo_dir = os.path.join(data_dir, f"processed/boxy_yolo_n{nc}{'_skip' if SKIP_SMALL else ''}")
 train_images_dir = os.path.join(yolo_dir, "train", "images")
 train_labels_dir = os.path.join(yolo_dir, "train", "labels")
 val_images_dir = os.path.join(yolo_dir, "val", "images")

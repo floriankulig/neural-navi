@@ -4,8 +4,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
 #SBATCH --time=06:00:00
-#SBATCH --output=boxy_prepare-%j.out
-#SBATCH --error=boxy_prepare-%j.out
+#SBATCH --output=logs/boxy_prepare-%j.out
+#SBATCH --error=logs/boxy_prepare-%j.out
 
 # Create virtual environment if it doesn't exist
 if [ ! -d "venv" ]; then
@@ -14,9 +14,6 @@ fi
 
 # Activate virtual environment
 source venv/bin/activate
-
-# Install requirements if needed
-pip install -r requirements.txt
 
 # Run the dataset preparation script (updated path)
 srun python3 -u training/datasets/boxy_preparation.py

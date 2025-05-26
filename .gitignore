@@ -18,6 +18,9 @@ deep/data
 
 /runs
 
+# Logs
+logs/
+
 # Models
 best*.pt
 
