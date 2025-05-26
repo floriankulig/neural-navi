@@ -97,6 +97,8 @@ def create_model_variant(config: Dict[str, Any]) -> BrakingPredictionBaseModel:
     fusion_output_dim = config.get(
         "fusion_output_dim", config.get("embedding_dim", 64) * 2
     )
+    # Get prediction tasks from config
+    prediction_tasks = config.get("prediction_tasks", ["brake_1s", "brake_2s"])
 
     if decoder_type == "lstm":
         decoder = LSTMOutputDecoder(
@@ -104,7 +106,7 @@ def create_model_variant(config: Dict[str, Any]) -> BrakingPredictionBaseModel:
             hidden_dim=config.get("hidden_dim", 128),
             num_layers=config.get("decoder_num_layers", 2),
             dropout_prob=config.get("dropout_prob", 0.3),
-            prediction_horizons=config.get("prediction_horizons", [1, 3, 5]),
+            prediction_tasks=prediction_tasks,
             include_brake_force=config.get("include_brake_force", False),
             include_uncertainty=config.get("include_uncertainty", False),
         )
@@ -115,7 +117,7 @@ def create_model_variant(config: Dict[str, Any]) -> BrakingPredictionBaseModel:
             num_heads=config.get("attention_num_heads", 4),
             num_layers=config.get("decoder_num_layers", 2),
             dropout_prob=config.get("dropout_prob", 0.3),
-            prediction_horizons=config.get("prediction_horizons", [1, 3, 5]),
+            prediction_tasks=prediction_tasks,
             include_brake_force=config.get("include_brake_force", False),
             include_uncertainty=config.get("include_uncertainty", False),
         )
@@ -137,7 +139,7 @@ if __name__ == "__main__":
         "encoder_type": "simple",  # "simple" oder "attention"
         # "fusion_type": "cross_attention",  # "concat", "query" oder "cross_attention"
         "fusion_type": "query",  # "concat", "query" oder  "cross_attention"
-        "decoder_type": "transformer",  # "lstm" oder "transformer"
+        "decoder_type": "lstm",  # "lstm" oder "transformer"
         # Allgemeine Parameter
         "embedding_dim": 64,
         "hidden_dim": 128,
@@ -145,7 +147,12 @@ if __name__ == "__main__":
         "decoder_num_layers": 3,
         "dropout_prob": 0.3,
         # Spezifische Parameter
-        "prediction_horizons": [1, 2, 4],  # Zeithorizonte in Sekunden
+        "prediction_tasks": [
+            "brake_1s",
+            "brake_2s",
+            "coast_1s",
+            "coast_2s",
+        ],  # Zeithorizonte in Sekunden
         "include_brake_force": False,
         "include_uncertainty": False,
         "bidirectional_fusion": False,

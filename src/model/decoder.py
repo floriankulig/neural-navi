@@ -28,7 +28,7 @@ class LSTMOutputDecoder(OutputDecoder):
         hidden_dim (int): Dimensionality of the LSTM hidden states
         num_layers (int): Number of LSTM layers
         dropout_prob (float): Dropout probability
-        prediction_horizons (List[int]): List of time horizons for predictions
+        prediction_tasks (List[str]): List of prediction tasks (e.g., ["brake_1s", "brake_2s", "brake_4s"])
         include_brake_force (bool): Whether to perform regression for brake force
         include_uncertainty (bool): Whether to perform uncertainty estimation
     """
@@ -39,13 +39,13 @@ class LSTMOutputDecoder(OutputDecoder):
         hidden_dim: int = 128,
         num_layers: int = 2,
         dropout_prob: float = 0.3,
-        prediction_horizons: List[int] = [1, 3, 5],
+        prediction_tasks: List[str] = ["brake_1s", "brake_2s", "brake_4s"],
         include_brake_force: bool = False,
         include_uncertainty: bool = False,
     ):
         super().__init__()
 
-        self.prediction_horizons = prediction_horizons
+        self.prediction_tasks = prediction_tasks
         self.include_brake_force = include_brake_force
         self.include_uncertainty = include_uncertainty
 
@@ -59,16 +59,16 @@ class LSTMOutputDecoder(OutputDecoder):
             bidirectional=False,
         )
 
-        # Binary prediction heads for different time horizons
-        self.binary_heads = nn.ModuleDict(
+        # Task-specific prediction heads (instead of horizon-based)
+        self.task_heads = nn.ModuleDict(
             {
-                f"horizon_{horizon}s": nn.Sequential(
+                task_name: nn.Sequential(
                     nn.Linear(hidden_dim, hidden_dim // 2),
                     nn.ReLU(),
                     nn.Dropout(dropout_prob),
                     nn.Linear(hidden_dim // 2, 1),
                 )
-                for horizon in prediction_horizons
+                for task_name in prediction_tasks  # brake_1s, coast_1s, etc.
             }
         )
 
@@ -101,7 +101,7 @@ class LSTMOutputDecoder(OutputDecoder):
 
         Returns:
             dict: Dictionary with predictions for different tasks
-                For each horizon in prediction_horizons:
+                For each task in prediction_tasks:
                 "binary_{horizon}s": (batch_size, 1)
 
                 Optional:
@@ -112,12 +112,10 @@ class LSTMOutputDecoder(OutputDecoder):
         lstm_out, (lstm_h_n, _) = self.lstm(fused_features)
         final_state = lstm_h_n[-1]  # Last hidden state
 
-        # Predictions for various time horizons
+        # Task-specific predictions
         predictions = {}
-        for horizon in self.prediction_horizons:
-            predictions[f"binary_{horizon}s"] = self.binary_heads[
-                f"horizon_{horizon}s"
-            ](final_state)
+        for task_name in self.prediction_tasks:
+            predictions[task_name] = self.task_heads[task_name](final_state)
 
         # Optional: Brake force regression
         if self.include_brake_force:
@@ -143,7 +141,7 @@ class TransformerOutputDecoder(OutputDecoder):
         num_heads (int): Number of attention heads
         num_layers (int): Number of transformer encoder layers
         dropout_prob (float): Dropout probability
-        prediction_horizons (List[int]): List of time horizons for predictions
+        prediction_tasks (List[str]): List of prediction tasks (e.g., ["brake_1s", "brake_2s", "brake_4s"])
         include_brake_force (bool): Whether to perform regression for brake force
         include_uncertainty (bool): Whether to perform uncertainty estimation
     """
@@ -155,13 +153,13 @@ class TransformerOutputDecoder(OutputDecoder):
         num_heads: int = 4,
         num_layers: int = 2,
         dropout_prob: float = 0.3,
-        prediction_horizons: List[int] = [1, 3, 5],
+        prediction_tasks: List[str] = ["brake_1s", "brake_2s", "brake_4s"],
         include_brake_force: bool = False,
         include_uncertainty: bool = False,
     ):
         super().__init__()
 
-        self.prediction_horizons = prediction_horizons
+        self.prediction_tasks = prediction_tasks
         self.include_brake_force = include_brake_force
         self.include_uncertainty = include_uncertainty
 
@@ -185,16 +183,16 @@ class TransformerOutputDecoder(OutputDecoder):
             encoder_layer=encoder_layer, num_layers=num_layers
         )
 
-        # Binary prediction heads for different time horizons
-        self.binary_heads = nn.ModuleDict(
+        # Task-specific prediction heads (instead of horizon-based)
+        self.task_heads = nn.ModuleDict(
             {
-                f"horizon_{horizon}s": nn.Sequential(
+                task_name: nn.Sequential(
                     nn.Linear(hidden_dim, hidden_dim // 2),
                     nn.ReLU(),
                     nn.Dropout(dropout_prob),
                     nn.Linear(hidden_dim // 2, 1),
                 )
-                for horizon in prediction_horizons
+                for task_name in prediction_tasks  # brake_1s, coast_1s, etc.
             }
         )
 
@@ -227,7 +225,7 @@ class TransformerOutputDecoder(OutputDecoder):
 
         Returns:
             dict: Dictionary with predictions for different tasks
-                For each horizon in prediction_horizons:
+                For each task in prediction_tasks:
                 "binary_{horizon}s": (batch_size, 1)
 
                 Optional:
@@ -243,12 +241,10 @@ class TransformerOutputDecoder(OutputDecoder):
         # Use the last token of the sequence for predictions
         final_state = transformer_out[:, -1]
 
-        # Predictions for various time horizons
+        # Task-specific predictions
         predictions = {}
-        for horizon in self.prediction_horizons:
-            predictions[f"binary_{horizon}s"] = self.binary_heads[
-                f"horizon_{horizon}s"
-            ](final_state)
+        for task_name in self.prediction_tasks:
+            predictions[task_name] = self.task_heads[task_name](final_state)
 
         # Optional: Brake force regression
         if self.include_brake_force:

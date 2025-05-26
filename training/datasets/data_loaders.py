@@ -44,7 +44,7 @@ class MultimodalDataset(Dataset):
         self.use_class_features = use_class_features
 
         if target_horizons is None:
-            target_horizons = [f"brake_{i}s" for i in range(1, 6)]
+            target_horizons = ["brake_1s", "brake_2s", "coast_1s", "coast_2s"]
         self.target_horizons = target_horizons
 
         if not self.h5_file_path.exists():

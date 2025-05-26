@@ -227,7 +227,7 @@ config = {
     "encoder_type": "attention",        # simple | attention
     "fusion_type": "cross_attention",   # concat | cross_attention | query  
     "decoder_type": "lstm",            # lstm | transformer
-    "prediction_horizons": [1, 3, 5],  # Predict braking 1s, 3s, 5s ahead
+    "prediction_tasks": ["brake_1s", "brake_2s"],
     "embedding_dim": 64,
     "max_detections": 12,
     "max_seq_length": 20

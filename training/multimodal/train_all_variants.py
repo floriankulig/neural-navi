@@ -86,10 +86,12 @@ HYPERPARAMETERS = {
 
 # Multi-task learning weights
 TASK_WEIGHTS = {
-    "brake_1s": 1.0,  # Primary task
-    "brake_2s": 0.3,  # Secondary tasks
-    "brake_4s": 0.3,
-    # TODO: Add coasting prediction tasks
+    # Brake prediction (higher priority - safety critical)
+    "brake_1s": 1.0,  # Primary task - immediate braking
+    "brake_2s": 0.8,  # Secondary task - near-future braking
+    # Coast prediction (lower priority - efficiency/comfort)
+    "coast_1s": 0.4,  # Coasting prediction
+    "coast_2s": 0.3,  # Future coasting
 }
 
 TARGET_HORIZONS = list(TASK_WEIGHTS.keys())
@@ -221,7 +223,7 @@ class ModelTrainer:
             "hidden_dim": HYPERPARAMETERS["hidden_dim"],
             "attention_num_heads": HYPERPARAMETERS["num_heads"],
             "dropout_prob": HYPERPARAMETERS["dropout_prob"],
-            "prediction_horizons": [1, 2, 4],  # Only train on these horizons
+            "prediction_tasks": list(TASK_WEIGHTS.keys()),
             "max_detections": 12,
             "max_seq_length": 20,
         }
