@@ -137,3 +137,66 @@ full-pipeline-boxy:
 monitor-jobs:
 	@echo "📊 SLURM Job Status:"
 	squeue -u $$USER
+
+# Multimodal pipeline commands
+download-data:
+	sbatch jobs/multimodal_download.slurm
+
+annotate-multimodal:
+	sbatch jobs/multimodal_annotate.slurm
+
+generate-labels:
+	sbatch jobs/multimodal_labels.slurm
+
+prepare-multimodal:
+	sbatch jobs/multimodal_prepare.slurm
+
+train-single-arch:
+	@echo "Usage: make train-single-arch ARCH=simple_concat_lstm"
+	sbatch --export=ARCHITECTURE=$(ARCH) jobs/multimodal_train_single.slurm
+
+train-all-multimodal:
+	sbatch jobs/multimodal_train_all.slurm
+
+evaluate-multimodal:
+	sbatch jobs/multimodal_evaluate.slurm
+
+run-full-pipeline:
+	sbatch jobs/multimodal_pipeline_full.slurm
+
+# Local development commands
+test-dataloader:
+	python training/datasets/data_loaders.py --h5-file data/datasets/multimodal/train.h5 --batch-size 4
+
+test-annotation:
+	python training/multimodal/auto_annotate.py --max-recordings 1 --force
+
+test-preparation:
+	python training/multimodal/prepare_dataset.py --max-recordings 2
+
+# Help for multimodal commands
+help-multimodal:
+	@echo "🤖 Neural-Navi Multimodal Pipeline Commands:"
+	@echo ""
+	@echo "📥 Data Pipeline:"
+	@echo "  download-data          Download training data from SharePoint"
+	@echo "  annotate-multimodal    Auto-annotate images with YOLO"
+	@echo "  generate-labels        Generate future labels from telemetry"
+	@echo "  prepare-multimodal     Prepare dataset for training"
+	@echo ""
+	@echo "🤖 Training Pipeline:"
+	@echo "  train-single-arch      Train single architecture (use ARCH=name)"
+	@echo "  train-all-multimodal   Train all 12 architectures"
+	@echo "  evaluate-multimodal    Evaluate all trained models"
+	@echo ""
+	@echo "🚀 Full Pipeline:"
+	@echo "  run-full-pipeline      Run complete pipeline (data → training → evaluation)"
+	@echo ""
+	@echo "🔧 Development:"
+	@echo "  test-dataloader        Test multimodal dataloader"
+	@echo "  test-annotation        Test annotation on 1 recording"
+	@echo "  test-preparation       Test dataset preparation on 2 recordings"
+	@echo ""
+	@echo "📊 Monitoring:"
+	@echo "  monitor-jobs           Show current SLURM jobs"
+	@echo "  cancel-jobs            Cancel all user jobs"
