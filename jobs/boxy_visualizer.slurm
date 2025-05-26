@@ -24,7 +24,7 @@ mkdir -p evaluation/boxy_visualizations
 
 # Run visualization script (updated path and arguments)
 srun python3 -u evaluation/visualization.py \
-    --data_dir data/processed/boxy_yolo_n3 \
+    --data_dir data/datasets/processed/boxy_yolo_n3 \
     --output_dir evaluation/boxy_visualizations \
     --sample_size 50000 \
     --heatmap_resolution 800 \

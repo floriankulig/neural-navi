@@ -33,7 +33,7 @@ def parse_args():
     parser.add_argument(
         "--data_dir",
         type=str,
-        default="data/boxy_yolo_n3",
+        default="data/datasets/processed/boxy_yolo_n3",
         help="Path to the YOLO-formatted Boxy dataset",
     )
     parser.add_argument(
