@@ -17,7 +17,7 @@ from ultralytics import YOLO
 
 def main():
     num_gpus = 3
-    batch_size = 48 * num_gpus
+    batch_size = 60 * num_gpus
     devices = [-1] * num_gpus
 
     # Load pre-trained model
@@ -25,21 +25,21 @@ def main():
 
     # Training hyperparameters
     hyperparameters = {
-        "data": "data/dataset_nc1_hard.yaml",
-        "epochs": 100,
+        "data": "data/datasets/dataset_nc1_hard.yaml",
+        "epochs": 110,
         "close_mosaic": 10,
         "patience": 15,
         "batch": batch_size,
         "imgsz": 704,
         "multi_scale": False,
-        # 'optimizer': 'AdamW',
-        # 'warmup_epochs': 4,
-        # 'lr0': 0.0075,
-        # 'cos_lr': True,
+        'optimizer': 'AdamW',
+        'warmup_epochs': 5,
+        'lr0': 0.0075,
+        'cos_lr': True,
         # Augmentations adapted
         "degrees": 6,  # Less, since camera is mounted fixed
         "perspective": 0.00025,  # Minimal
-        "mixup": 0.0,  # Off - problematic for small objects
+        "mixup": 0.05,  # Off - problematic for small objects
         "cutmix": 0.05,  # Off - problematic for small objects
         "copy_paste": 0.1,  # Can help!
         "close_mosaic": 10,
@@ -51,8 +51,8 @@ def main():
         "pretrained": True,
         "plots": True,
         "val": True,
-        "project": "runs/final",
-        "name": "yolo12n1_auto",
+        # "project": "runs/final",
+        "name": "yolo12n1",
     }
 
     # Start training

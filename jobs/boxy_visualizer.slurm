@@ -4,8 +4,8 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
 #SBATCH --time=01:00:00
-#SBATCH --output=boxy_visualizer-%j.out
-#SBATCH --error=boxy_visualizer-%j.out
+#SBATCH --output=logs/boxy_visualizer-%j.out
+#SBATCH --error=logs/boxy_visualizer-%j.out
 
 # Create virtual environment if it doesn't exist
 if [ ! -d "venv" ]; then

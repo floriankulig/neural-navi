@@ -4,8 +4,8 @@
 #SBATCH --cpus-per-task=12
 #SBATCH --mem=40G
 #SBATCH --time=12:00:00
-#SBATCH --output=yolo12n_train-%j.out
-#SBATCH --error=yolo12n_train-%j.out
+#SBATCH --output=logs/yolo12n_train-%j.out
+#SBATCH --error=logs/yolo12n_train-%j.out
 
 # Create virtual environment if it doesn't exist
 if [ ! -d "venv" ]; then
