@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 
 # Add project root to path for imports
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(PROJECT_ROOT / "src"))
+sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.utils.config import RECORDING_OUTPUT_PATH, TIME_FORMAT_LOG
 
