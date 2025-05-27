@@ -22,10 +22,9 @@ import torch
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from src import model
-from src.utils.config import RECORDING_OUTPUT_PATH, TIME_FORMAT_LOG
-from src.utils.device import setup_device
-from src.processing.image_processor import ImageProcessor
+from utils.config import RECORDING_OUTPUT_PATH, TIME_FORMAT_LOG
+from utils.device import setup_device
+from processing.image_processor import ImageProcessor
 from ultralytics import YOLO
 
 # Configure logging
@@ -37,7 +36,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Model and annotation configuration
-DEFAULT_MODEL_PATH = "data/models/yolo/yolo_best.pt"
+DEFAULT_MODEL_PATH = "boxyn1hard.pt"
 DEFAULT_MODEL_IMG_SIZE = 704
 DEFAULT_CONFIDENCE = 0.25
 SAVE_PROGRESS_INTERVAL = 100
@@ -469,18 +468,18 @@ def main():
         type=int,
         help="Maximum number of recordings to process (for testing)",
     )
-    parser.add_argument(
-        "--device",
-        type=str,
-        default="cuda",
-        help="Device to use for inference (cuda, cpu, mps)",
-    )
 
     args = parser.parse_args()
 
     model_path = (
         "data/models/yolo/" + args.model if not "/" in args.model else args.model
     )
+    if not Path(model_path).exists():
+        model_path += ".pt"  # Ensure .pt extension if not provided
+    if not Path(model_path).exists():
+        logger.error(f"❌ Model file not found: {model_path}")
+        sys.exit(1)
+    logger.info(f"🔧 Using model: {model_path}")
 
     try:
         # Initialize annotator
@@ -489,7 +488,7 @@ def main():
             use_multiclass=args.multiclass,
             confidence_threshold=args.confidence,
             img_size=args.img_size,
-            device=args.device,
+            device=-1,
         )
 
         # Run annotation pipeline

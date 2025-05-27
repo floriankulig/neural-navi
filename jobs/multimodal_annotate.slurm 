@@ -23,7 +23,7 @@ pip install ultralytics
 # Run auto-annotation with YOLO model
 srun python3 -u training/multimodal/auto_annotate.py \
     --recordings-dir data/recordings \
-    --model-path yolo_best.pt \
+    --model boxyn1hard \
     --confidence 0.25 \
     --img-size 704 \
     --force
