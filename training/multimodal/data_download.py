@@ -20,7 +20,7 @@ from typing import List, Optional
 
 # Add project root to path for imports
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(PROJECT_ROOT / "src"))
+sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.utils.config import RECORDING_OUTPUT_PATH
 
@@ -77,8 +77,9 @@ class DataDownloader:
         """
         if filename is None:
             filename = url.split("/")[-1]
-            if not filename.endswith(".zip"):
-                filename += ".zip"
+
+        if not filename.endswith(".zip"):
+            filename += ".zip"
 
         file_path = self.temp_dir / filename
 
@@ -270,7 +271,7 @@ class DataDownloader:
         for i, url in enumerate(urls, 1):
             logger.info(f"📥 Processing file {i}/{len(urls)}")
 
-            file_path = self.download_file(url)
+            file_path = self.download_file(url, filename=f"training_{i}.zip")
             if file_path:
                 downloaded_files.append(file_path)
             else:
@@ -338,7 +339,7 @@ def main():
         sys.exit(0 if success else 1)
 
     # Check if URLs are provided
-    if not args.urls or args.urls == DEFAULT_SHAREPOINT_URLS:
+    if not args.urls:
         logger.error("❌ No valid SharePoint URLs provided.")
         logger.error(
             "   Please provide URLs with --urls or update DEFAULT_SHAREPOINT_URLS"
