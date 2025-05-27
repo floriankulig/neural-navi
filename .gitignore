@@ -6,6 +6,7 @@ recordings/
 data/datasets/raw
 data/datasets/processed
 data/datasets/*labels*
+data/datasets/*.yaml
 
 evaluation/*.jpg
 evaluation/*results*
