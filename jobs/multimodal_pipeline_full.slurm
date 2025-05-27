@@ -5,7 +5,7 @@
 #SBATCH --mem=120G
 #SBATCH --time=72:00:00                     # Full pipeline time
 #SBATCH --output=logs/multimodal_full_pipeline-%j.out
-#SBATCH --error=logs/multimodal_full_pipeline-%j.err
+#SBATCH --error=logs/multimodal_full_pipeline-%j.out
 
 # Create logs directory
 mkdir -p logs

@@ -5,7 +5,7 @@
 #SBATCH --mem=120G
 #SBATCH --time=12:00:00
 #SBATCH --output=logs/multimodal_train_single-%j.out
-#SBATCH --error=logs/multimodal_train_single-%j.err
+#SBATCH --error=logs/multimodal_train_single-%j.out
 
 # Create logs directory
 mkdir -p logs

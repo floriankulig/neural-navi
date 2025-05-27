@@ -5,7 +5,7 @@
 #SBATCH --mem=16G
 #SBATCH --time=01:00:00
 #SBATCH --output=logs/multimodal_labels-%j.out
-#SBATCH --error=logs/multimodal_labels-%j.err
+#SBATCH --error=logs/multimodal_labels-%j.out
 
 # Create logs directory
 mkdir -p logs

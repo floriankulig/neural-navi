@@ -5,7 +5,7 @@
 #SBATCH --mem=16G
 #SBATCH --time=02:00:00
 #SBATCH --output=logs/multimodal_download-%j.out
-#SBATCH --error=logs/multimodal_download-%j.err
+#SBATCH --error=logs/multimodal_download-%j.out
 
 # Create logs directory
 mkdir -p logs

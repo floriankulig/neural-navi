@@ -5,7 +5,7 @@
 #SBATCH --mem=120G
 #SBATCH --time=48:00:00                     # Long job for all architectures
 #SBATCH --output=logs/multimodal_train_all-%j.out
-#SBATCH --error=logs/multimodal_train_all-%j.err
+#SBATCH --error=logs/multimodal_train_all-%j.out
 
 # Create logs directory
 mkdir -p logs

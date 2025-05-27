@@ -5,7 +5,7 @@
 #SBATCH --mem=64G
 #SBATCH --time=04:00:00
 #SBATCH --output=logs/multimodal_prepare-%j.out
-#SBATCH --error=logs/multimodal_prepare-%j.err
+#SBATCH --error=logs/multimodal_prepare-%j.out
 
 # Create logs directory
 mkdir -p logs
