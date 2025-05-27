@@ -17,7 +17,7 @@ from ultralytics import YOLO
 
 def main():
     num_gpus = 3
-    batch_size = 60 * num_gpus
+    batch_size = 64 * num_gpus
     devices = [-1] * num_gpus
 
     # Load pre-trained model
@@ -31,23 +31,24 @@ def main():
         "patience": 15,
         "batch": batch_size,
         "imgsz": 704,
-        "multi_scale": False,
+        "multi_scale": True,
         'optimizer': 'AdamW',
         'warmup_epochs': 5,
         'lr0': 0.0075,
+        'lrf': 0.011,
         'cos_lr': True,
         # Augmentations adapted
         "degrees": 6,  # Less, since camera is mounted fixed
         "perspective": 0.00025,  # Minimal
-        "mixup": 0.05,  # Off - problematic for small objects
-        "cutmix": 0.05,  # Off - problematic for small objects
+        "mixup": 0.075,  # Off - problematic for small objects
+        "cutmix": 0.075,  # Off - problematic for small objects
         "copy_paste": 0.1,  # Can help!
         "close_mosaic": 10,
         "save_period": 5,
         "workers": 12,
-        "cls": 0.575,
+        "cls": 0.55,
         "device": devices,
-        "dropout": 0.15,
+        "dropout": 0.175,
         "pretrained": True,
         "plots": True,
         "val": True,
