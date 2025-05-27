@@ -3,8 +3,9 @@
 recordings/
 
 # Project Data
-data/datasets/raw
+data/datasets/multimodal
 data/datasets/processed
+data/datasets/raw
 data/datasets/*labels*
 data/datasets/*.yaml
 
