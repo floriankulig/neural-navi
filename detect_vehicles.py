@@ -241,8 +241,8 @@ def main():
     parser.add_argument(
         "--imgsz",
         type=int,
-        default=640,
-        help="imgsz (default: 640) - image size for inference",
+        default=704,
+        help="imgsz (default: 704) - image size for inference",
     )
     parser.add_argument(
         "--half",
@@ -256,7 +256,14 @@ def main():
 
     # Load YOLOv11 model
     print(f"🔍 Loading {args.model} model...")
-    model_path = "data/models/yolo/" + args.model
+    model_path = (
+        "data/models/yolo/" + args.model if not "/" in args.model else args.model
+    )
+    if not Path(model_path).exists():
+        model_path = model_path + ".pt"
+    if not Path(model_path).exists():
+        print(f"❌ Model file {model_path} not found.")
+        return
     model = YOLO(model_path)
     print("✅ Model loaded successfully.")
 
