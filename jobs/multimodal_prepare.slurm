@@ -28,7 +28,7 @@ srun python3 -u training/multimodal/prepare_dataset.py \
     --recordings-dir data/recordings \
     --output-dir data/datasets/multimodal \
     --sequence-length 20 \
-    --sequence-stride 5 \
+    --sequence-stride 4 \
     --max-detections 12 \
     --random-seed 42
 

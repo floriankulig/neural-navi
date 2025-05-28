@@ -23,7 +23,7 @@ import random
 
 # Add project root to path for imports
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(PROJECT_ROOT / "src"))
+sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.utils.config import RECORDING_OUTPUT_PATH
 
@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 # Dataset configuration
 SEQUENCE_LENGTH = 20  # 20 frames = 10 seconds at 2Hz
-SEQUENCE_STRIDE = 5  # 5 frames = 2.5 seconds stride
+SEQUENCE_STRIDE = 4  # 4 frames = 2 seconds stride
 MAX_DETECTIONS = 12  # Maximum objects per frame
 TRAIN_SPLIT = 0.70
 VAL_SPLIT = 0.15
