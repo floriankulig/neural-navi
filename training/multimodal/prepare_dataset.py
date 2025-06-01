@@ -25,7 +25,7 @@ import random
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.utils.config import RECORDING_OUTPUT_PATH
+from src.utils.config import RECORDING_OUTPUT_PATH, TIME_FORMAT_LOG
 
 # Configure logging
 logging.basicConfig(
@@ -259,6 +259,50 @@ class DatasetPreparator:
         mask[:num_detections] = True
         return mask
 
+    def _is_continuous_sequence(
+        self, timestamps: List[str], max_gap_ms: int = 601
+    ) -> bool:
+        """
+        Check if a sequence of timestamps is continuous.
+
+        Args:
+            timestamps: List of timestamp strings
+            max_gap_ms: Maximum allowed gap between consecutive timestamps in milliseconds
+
+        Returns:
+            True if sequence is continuous, False otherwise
+        """
+        if len(timestamps) < 2:
+            return True
+
+        try:
+            # Parse timestamps to datetime objects
+            from datetime import datetime
+
+            # Parse timestamps (format: "YYYY-MM-DD HH-MM-SS-f")
+            datetime_objects = []
+            for ts in timestamps:
+                # Handle the timestamp format from your logs
+                dt = datetime.strptime(ts, TIME_FORMAT_LOG)
+                datetime_objects.append(dt)
+
+            # Check gaps between consecutive timestamps
+            for i in range(1, len(datetime_objects)):
+                gap = datetime_objects[i] - datetime_objects[i - 1]
+                gap_ms = gap.total_seconds() * 1000
+
+                if gap_ms > max_gap_ms:
+                    logger.debug(
+                        f"Gap too large: {gap_ms:.1f}ms between {timestamps[i-1]} and {timestamps[i]}"
+                    )
+                    return False
+
+            return True
+
+        except Exception as e:
+            logger.warning(f"Failed to parse timestamps: {e}")
+            return False
+
     def _extract_sequences_from_recording(self, recording_data: Dict) -> List[Dict]:
         """
         Extract sliding window sequences from recording data.
@@ -273,6 +317,7 @@ class DatasetPreparator:
         recording_name = recording_data["recording_name"]
 
         sequences = []
+        skipped_discontinuous = 0
 
         # Generate sliding windows
         for start_idx in range(
@@ -280,6 +325,12 @@ class DatasetPreparator:
         ):
             end_idx = start_idx + self.sequence_length
             sequence_df = df.iloc[start_idx:end_idx].copy()
+
+            # Check if sequence is continuous
+            timestamps = sequence_df["Time"].tolist()
+            if not self._is_continuous_sequence(timestamps):
+                skipped_discontinuous += 1
+                continue
 
             # Extract telemetry features
             telemetry_seq = sequence_df[TELEMETRY_FEATURES].values.astype(np.float32)
@@ -320,12 +371,17 @@ class DatasetPreparator:
                 "detection_seq": detection_seq,
                 "detection_mask": detection_mask,
                 "labels": labels,
-                "timestamps": sequence_df["Time"].tolist(),
+                "timestamps": timestamps,
             }
 
             sequences.append(sequence)
 
         logger.debug(f"✅ Extracted {len(sequences)} sequences from {recording_name}")
+        if skipped_discontinuous > 0:
+            logger.info(
+                f"⏭️ Skipped {skipped_discontinuous} discontinuous sequences in {recording_name}"
+            )
+
         return sequences
 
     def _calculate_brake_event_ratio(self, sequences: List[Dict]) -> float:
