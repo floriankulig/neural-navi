@@ -9,6 +9,8 @@ data/datasets/raw
 data/datasets/*labels*
 data/datasets/*.yaml
 
+data/models/multimodal
+
 evaluation/*.jpg
 evaluation/*results*
 evaluation/*/*.png
