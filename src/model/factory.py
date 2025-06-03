@@ -71,7 +71,7 @@ def create_model_variant(config: Dict[str, Any]) -> BrakingPredictionBaseModel:
             output_dim=config.get("fusion_output_dim", None),
             dropout_prob=config.get("dropout_prob", 0.1),
         )
-    elif fusion_type == "cross_attention":
+    elif "cross" in fusion_type:
         fusion = CrossModalAttentionFusion(
             embedding_dim=config.get("embedding_dim", 64),
             num_heads=config.get("attention_num_heads", 4),
