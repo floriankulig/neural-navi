@@ -21,6 +21,7 @@ from src.model.fusion import (
 )
 from src.model.decoder import LSTMOutputDecoder, TransformerOutputDecoder
 from src.model.base import BrakingPredictionBaseModel
+import time
 
 
 def create_model_variant(config: Dict[str, Any]) -> BrakingPredictionBaseModel:
@@ -182,9 +183,15 @@ if __name__ == "__main__":
             if num_valid > 0:
                 dummy_mask[b, s, :num_valid] = True
 
-    # Forward-Pass
+    # Forward-Pass mit Zeitmessung
+    
     with torch.no_grad():
+        start_time = time.time()
         predictions = model(dummy_telemetry, dummy_detections, dummy_mask)
+        end_time = time.time()
+        
+    inference_time = end_time - start_time
+    print(f"Inference Zeit: {inference_time:.4f} Sekunden")
 
     # Ergebnisse ausgeben
     print("\n--- Modulares Brems-Prädiktionsmodell Test ---")
