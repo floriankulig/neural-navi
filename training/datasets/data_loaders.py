@@ -65,6 +65,15 @@ class MultimodalDataset(Dataset):
         print(f"   🏷️ Use class features: {self.use_class_features}")
         print(f"   🎯 Target horizons: {self.target_horizons}")
 
+    def _safe_decode(self, value):
+        """Safely decode bytes to string, or return string if already decoded."""
+        if isinstance(value, bytes):
+            return value.decode("utf-8")
+        elif isinstance(value, np.bytes_):
+            return value.decode("utf-8")
+        else:
+            return str(value)  # Already a string or other type
+
     def _load_dataset_info(self):
         """Load dataset metadata and configuration."""
         with h5py.File(self.h5_file_path, "r") as f:
@@ -77,7 +86,7 @@ class MultimodalDataset(Dataset):
 
             # Get feature names
             self.telemetry_features = [
-                f.decode("utf-8") for f in f["info"].attrs["telemetry_features"]
+                self._safe_decode(f) for f in f["info"].attrs["telemetry_features"]
             ]
 
             # Get available label names
@@ -112,7 +121,7 @@ class MultimodalDataset(Dataset):
 
             # Load metadata
             self.recording_names = [
-                name.decode("utf-8") for name in f["metadata"]["recording_names"][:]
+                self._safe_decode(name) for name in f["metadata"]["recording_names"][:]
             ]
 
         print(f"✅ Loaded {self.num_sequences} sequences into memory")
@@ -203,10 +212,10 @@ class MultimodalDataset(Dataset):
     def get_sample_info(self, idx: int) -> Dict[str, Any]:
         """Get metadata for a specific sample."""
         with h5py.File(self.h5_file_path, "r") as f:
-            recording_name = f["metadata"]["recording_names"][idx].decode("utf-8")
+            recording_name = self._safe_decode(f["metadata"]["recording_names"][idx])
             start_idx = int(f["metadata"]["start_indices"][idx])
             end_idx = int(f["metadata"]["end_indices"][idx])
-            timestamps = json.loads(f["metadata"]["timestamps"][idx].decode("utf-8"))
+            timestamps = json.loads(self._safe_decode(f["metadata"]["timestamps"][idx]))
 
         return {
             "recording_name": recording_name,
