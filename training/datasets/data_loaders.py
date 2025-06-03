@@ -15,7 +15,9 @@ from typing import Dict, Any, Optional, Tuple, List
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from processing.detection.detection_utils import normalize_detection_features, validate_detection_range
+from processing.detection.detection_utils import (
+    normalize_detection_features,
+)
 
 
 class MultimodalDataset(Dataset):
@@ -140,11 +142,11 @@ class MultimodalDataset(Dataset):
         if self.auto_normalize:
             print("🔧 Applying detection normalization to dataset...")
             self.detection_data = normalize_detection_features(
-                self.detection_data, 
+                self.detection_data,
                 self.detection_masks,
                 img_width=self.img_width,
                 img_height=self.img_height,
-                in_place=True
+                in_place=True,
             )
             print("✅ Detection normalization applied")
 
@@ -176,11 +178,11 @@ class MultimodalDataset(Dataset):
         # Apply auto-normalization if enabled
         if self.auto_normalize:
             detections = normalize_detection_features(
-                detections, 
+                detections,
                 detection_mask,
                 img_width=self.img_width,
                 img_height=self.img_height,
-                in_place=False
+                in_place=False,
             )
 
         # Simple LRU-style cache (keep last 100 items)
@@ -217,7 +219,9 @@ class MultimodalDataset(Dataset):
                 labels[horizon] = self.labels_data[horizon][idx]
         else:
             # Get from file
-            telemetry, detections, detection_mask, labels = self._get_data_from_file(idx)
+            telemetry, detections, detection_mask, labels = self._get_data_from_file(
+                idx
+            )
 
         # Process detection features
         detections = self._process_detection_features(detections)
@@ -341,23 +345,10 @@ def calculate_class_weights(dataset: MultimodalDataset) -> Dict[str, torch.Tenso
     stats = dataset.get_label_statistics()
     class_weights = {}
 
-    for horizon, stat in stats.items():
-        # Calculate inverse frequency weights
-        positive_ratio = stat["ratio"]
-        negative_ratio = 1 - positive_ratio
+    for horizon, _ in stats.items():
 
-        if positive_ratio > 0 and negative_ratio > 0:
-            # Inverse frequency weighting
-            pos_weight = negative_ratio / positive_ratio
-            
-            # Cap extreme weights to prevent instability
-            pos_weight = min(pos_weight, 50.0)  # Cap at 50.0
-            
-            weights = torch.tensor([1.0, pos_weight])
-        else:
-            # Fallback for edge cases
-            weights = torch.tensor([1.0, 1.0])
-
+        pos_weight = 2 if "brake" in horizon else 1
+        weights = torch.tensor([1.0, pos_weight])
         class_weights[horizon] = weights
         print(f"📊 {horizon} class weights: neg={weights[0]:.3f}, pos={weights[1]:.3f}")
 
