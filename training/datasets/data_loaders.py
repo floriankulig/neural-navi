@@ -1,6 +1,5 @@
 """
-PyTorch DataLoaders for multimodal training data.
-Efficient loading of HDF5 datasets with caching and optimization.
+PyTorch DataLoaders with automatic detection normalization.
 """
 
 import sys
@@ -16,11 +15,12 @@ from typing import Dict, Any, Optional, Tuple, List
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
+from processing.detection.detection_utils import normalize_detection_features, validate_detection_range
+
 
 class MultimodalDataset(Dataset):
     """
-    Dataset for multimodal braking prediction training.
-    Combines telemetry sequences with YOLO detection results.
+    Dataset with automatic detection normalization.
     """
 
     def __init__(
@@ -29,19 +29,28 @@ class MultimodalDataset(Dataset):
         load_into_memory: bool = False,
         use_class_features: bool = True,
         target_horizons: List[str] = None,
+        auto_normalize: bool = True,
+        img_width: int = 1920,
+        img_height: int = 575,
     ):
         """
-        Initialize the multimodal dataset.
+        Initialize the multimodal dataset with automatic detection normalization.
 
         Args:
             h5_file_path: Path to HDF5 file
             load_into_memory: Whether to load entire dataset into RAM
             use_class_features: Whether to include class_id in detection features
-            target_horizons: List of target horizon names to load (default: all brake horizons)
+            target_horizons: List of target horizon names to load
+            auto_normalize: Whether to automatically normalize detection features
+            img_width: Image width for normalization
+            img_height: Image height for normalization (consider ROI cropping)
         """
         self.h5_file_path = Path(h5_file_path)
         self.load_into_memory = load_into_memory
         self.use_class_features = use_class_features
+        self.auto_normalize = auto_normalize
+        self.img_width = img_width
+        self.img_height = img_height
 
         if target_horizons is None:
             target_horizons = ["brake_1s", "brake_2s", "coast_1s", "coast_2s"]
@@ -64,6 +73,9 @@ class MultimodalDataset(Dataset):
         print(f"   💾 Memory loading: {self.load_into_memory}")
         print(f"   🏷️ Use class features: {self.use_class_features}")
         print(f"   🎯 Target horizons: {self.target_horizons}")
+        print(f"   🔧 Auto normalize: {self.auto_normalize}")
+        if self.auto_normalize:
+            print(f"   📐 Normalization: {self.img_width}x{self.img_height}")
 
     def _safe_decode(self, value):
         """Safely decode bytes to string, or return string if already decoded."""
@@ -72,7 +84,7 @@ class MultimodalDataset(Dataset):
         elif isinstance(value, np.bytes_):
             return value.decode("utf-8")
         else:
-            return str(value)  # Already a string or other type
+            return str(value)
 
     def _load_dataset_info(self):
         """Load dataset metadata and configuration."""
@@ -124,6 +136,18 @@ class MultimodalDataset(Dataset):
                 self._safe_decode(name) for name in f["metadata"]["recording_names"][:]
             ]
 
+        # Apply auto-normalization to entire dataset if in memory
+        if self.auto_normalize:
+            print("🔧 Applying detection normalization to dataset...")
+            self.detection_data = normalize_detection_features(
+                self.detection_data, 
+                self.detection_masks,
+                img_width=self.img_width,
+                img_height=self.img_height,
+                in_place=True
+            )
+            print("✅ Detection normalization applied")
+
         print(f"✅ Loaded {self.num_sequences} sequences into memory")
 
     def _get_data_from_file(
@@ -149,6 +173,16 @@ class MultimodalDataset(Dataset):
             for horizon in self.target_horizons:
                 labels[horizon] = torch.from_numpy(np.array(f["labels"][horizon][idx]))
 
+        # Apply auto-normalization if enabled
+        if self.auto_normalize:
+            detections = normalize_detection_features(
+                detections, 
+                detection_mask,
+                img_width=self.img_width,
+                img_height=self.img_height,
+                in_place=False
+            )
+
         # Simple LRU-style cache (keep last 100 items)
         if len(self._data_cache) > 100:
             # Remove oldest item
@@ -171,19 +205,7 @@ class MultimodalDataset(Dataset):
         return self.num_sequences
 
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
-        """
-        Get single sample from dataset.
-
-        Args:
-            idx: Sample index
-
-        Returns:
-            Dictionary with sample data:
-            - telemetry_seq: [seq_len, telemetry_dim]
-            - detection_seq: [seq_len, max_detections, detection_dim]
-            - detection_mask: [seq_len, max_detections]
-            - targets: Dict with label tensors
-        """
+        """Get single sample from dataset."""
         if self.load_into_memory:
             # Get from memory
             telemetry = self.telemetry_data[idx]
@@ -195,9 +217,7 @@ class MultimodalDataset(Dataset):
                 labels[horizon] = self.labels_data[horizon][idx]
         else:
             # Get from file
-            telemetry, detections, detection_mask, labels = self._get_data_from_file(
-                idx
-            )
+            telemetry, detections, detection_mask, labels = self._get_data_from_file(idx)
 
         # Process detection features
         detections = self._process_detection_features(detections)
@@ -266,10 +286,13 @@ def create_multimodal_dataloader(
     load_into_memory: bool = False,
     use_class_features: bool = True,
     target_horizons: List[str] = None,
+    auto_normalize: bool = True,
+    img_width: int = 1920,
+    img_height: int = 575,  # ROI height
     **kwargs,
 ) -> DataLoader:
     """
-    Create DataLoader for multimodal training.
+    Create DataLoader for multimodal training with automatic detection normalization.
 
     Args:
         h5_file_path: Path to HDF5 dataset file
@@ -280,6 +303,9 @@ def create_multimodal_dataloader(
         load_into_memory: Whether to load dataset into memory
         use_class_features: Whether to include class_id in detection features
         target_horizons: List of target horizon names
+        auto_normalize: Whether to automatically normalize detection features
+        img_width: Image width for normalization
+        img_height: Image height for normalization (consider ROI)
         **kwargs: Additional DataLoader arguments
 
     Returns:
@@ -291,6 +317,9 @@ def create_multimodal_dataloader(
         load_into_memory=load_into_memory,
         use_class_features=use_class_features,
         target_horizons=target_horizons,
+        auto_normalize=auto_normalize,
+        img_width=img_width,
+        img_height=img_height,
     )
 
     # Create DataLoader
@@ -308,15 +337,7 @@ def create_multimodal_dataloader(
 
 
 def calculate_class_weights(dataset: MultimodalDataset) -> Dict[str, torch.Tensor]:
-    """
-    Calculate class weights for imbalanced datasets.
-
-    Args:
-        dataset: MultimodalDataset instance
-
-    Returns:
-        Dictionary with class weights for each target horizon
-    """
+    """Calculate class weights with extreme value capping."""
     stats = dataset.get_label_statistics()
     class_weights = {}
 
@@ -328,68 +349,16 @@ def calculate_class_weights(dataset: MultimodalDataset) -> Dict[str, torch.Tenso
         if positive_ratio > 0 and negative_ratio > 0:
             # Inverse frequency weighting
             pos_weight = negative_ratio / positive_ratio
-            weights = torch.tensor(
-                [1.0, pos_weight]
-            )  # [negative_weight, positive_weight]
+            
+            # Cap extreme weights to prevent instability
+            pos_weight = min(pos_weight, 50.0)  # Cap at 50.0
+            
+            weights = torch.tensor([1.0, pos_weight])
         else:
             # Fallback for edge cases
             weights = torch.tensor([1.0, 1.0])
 
         class_weights[horizon] = weights
-
         print(f"📊 {horizon} class weights: neg={weights[0]:.3f}, pos={weights[1]:.3f}")
 
     return class_weights
-
-
-# Example usage and testing
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Test multimodal DataLoader")
-    parser.add_argument("--h5-file", type=str, required=True, help="Path to HDF5 file")
-    parser.add_argument("--batch-size", type=int, default=4, help="Batch size")
-    parser.add_argument("--load-memory", action="store_true", help="Load into memory")
-    parser.add_argument(
-        "--no-class-features",
-        action="store_true",
-        default=True,
-        help="Exclude class features",
-    )
-
-    args = parser.parse_args()
-
-    # Test DataLoader
-    print("🧪 Testing MultimodalDataLoader...")
-
-    dataloader = create_multimodal_dataloader(
-        h5_file_path=args.h5_file,
-        batch_size=args.batch_size,
-        shuffle=True,
-        num_workers=2,
-        load_into_memory=args.load_memory,
-        use_class_features=not args.no_class_features,
-    )
-
-    # Test a few batches
-    for i, batch in enumerate(dataloader):
-        print(f"\n📦 Batch {i+1}:")
-        print(f"   🔢 Telemetry shape: {batch['telemetry_seq'].shape}")
-        print(f"   🎯 Detection shape: {batch['detection_seq'].shape}")
-        print(f"   🎭 Mask shape: {batch['detection_mask'].shape}")
-        print(f"   🏷️ Targets: {list(batch['targets'].keys())}")
-
-        for target_name, target_tensor in batch["targets"].items():
-            positive_count = target_tensor.sum().item()
-            print(
-                f"      {target_name}: {target_tensor.shape}, {positive_count}/{len(target_tensor)} positive"
-            )
-
-        if i >= 2:  # Test only first 3 batches
-            break
-
-    # Test class weights
-    print("\n⚖️ Testing class weights...")
-    class_weights = calculate_class_weights(dataloader.dataset)
-
-    print("✅ DataLoader test completed!")
