@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 Single Architecture Training Script
-Clean implementation for training one architecture on one GPU.
 """
 
 import sys
@@ -16,9 +15,10 @@ import torch.optim as optim
 from torch.amp import GradScaler, autocast
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 import json
+from tqdm import tqdm
 
 # Add project root to path for imports
-PROJECT_ROOT = Path(__file__).parent.parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "training"))
 
@@ -26,28 +26,92 @@ from model.factory import create_model_variant
 from datasets.data_loaders import create_multimodal_dataloader, calculate_class_weights
 
 
+# ====================================
+# TRAINING CONFIGURATION
+# ====================================
+
+# Model Architecture
+EMBEDDING_DIM = 128
+HIDDEN_DIM = EMBEDDING_DIM * 2
+NUM_HEADS = 8
+DECODER_NUM_LAYERS = 2
+DROPOUT_PROB = 0.15
+
+# Training Hyperparameters
+BATCH_SIZE = 256
+LEARNING_RATE = 1e-4
+WEIGHT_DECAY = 1e-4
+EPOCHS = 40
+PATIENCE = EPOCHS // 5
+GRAD_CLIP_NORM = 0.5
+
+# Task Configuration - Testing coast events (more frequent than brake)
+PREDICTION_TASKS = ["coast_1s", "coast_2s", "coast_3s"]
+TASK_WEIGHTS = {
+    "coast_1s": 1.0,
+    "coast_2s": 0.8, 
+    "coast_3s": 0.6,
+}
+CLASS_WEIGHT_MULTIPLIERS = {
+    "coast_1s": 1.5,
+    "coast_2s": 1.5,
+    "coast_3s": 1.5,
+}
+
+# Learning Rate Scheduling
+SCHEDULER_FACTOR = 0.7
+SCHEDULER_PATIENCE = 8
+MIN_LR = 1e-6
+
+# Data Configuration
+USE_CLASS_FEATURES = False
+AUTO_NORMALIZE = True
+IMG_WIDTH = 1920
+IMG_HEIGHT = 575
+
+# Training Infrastructure
+NUM_WORKERS = 8
+PIN_MEMORY = True
+MIXED_PRECISION = True
+LOG_INTERVAL = 50
+
+
 def setup_logging(log_file: str):
     """Setup logging configuration."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-        handlers=[logging.FileHandler(log_file), logging.StreamHandler()],
-    )
-    return logging.getLogger(__name__)
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setFormatter(formatter)
+    
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    
+    return logger
 
 
 class MultiTaskLoss(nn.Module):
-    """Multi-task loss with weighted BCE for different prediction horizons."""
+    """Multi-task loss with weighted BCE."""
 
-    def __init__(self, task_weights: dict, class_weights: dict):
+    def __init__(self, class_weights: dict):
         super().__init__()
-        self.task_weights = task_weights
+        self.task_weights = TASK_WEIGHTS
         self.criterions = {}
 
-        for task_name, weight in task_weights.items():
+        for task_name in PREDICTION_TASKS:
             if task_name in class_weights:
-                pos_weight = class_weights[task_name][1]  # Positive class weight
-                self.criterions[task_name] = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+                base_pos_weight = class_weights[task_name][1]
+                multiplier = CLASS_WEIGHT_MULTIPLIERS.get(task_name, 1.0)
+                adjusted_pos_weight = base_pos_weight * multiplier
+                adjusted_pos_weight = max(adjusted_pos_weight, class_weights[task_name][0]) # Ensure it's not less than the negative class weight
+                
+                self.criterions[task_name] = nn.BCEWithLogitsLoss(
+                    pos_weight=adjusted_pos_weight
+                )
             else:
                 self.criterions[task_name] = nn.BCEWithLogitsLoss()
 
@@ -56,28 +120,28 @@ class MultiTaskLoss(nn.Module):
         losses = {}
         total_loss = 0.0
 
-        for task_name, weight in self.task_weights.items():
+        for task_name in PREDICTION_TASKS:
             if task_name in predictions and task_name in targets:
                 pred = predictions[task_name].squeeze(-1)
                 target = targets[task_name].float()
 
                 task_loss = self.criterions[task_name](pred, target)
                 losses[f"loss_{task_name}"] = task_loss
-                total_loss += weight * task_loss
+                
+                task_weight = self.task_weights.get(task_name, 1.0)
+                total_loss += task_weight * task_loss
 
         losses["loss_total"] = total_loss
         return losses
 
 
-class SingleArchitectureTrainer:
-    """Trainer for a single architecture variant."""
+class Trainer:
+    """Single architecture trainer."""
 
-    def __init__(
-        self, data_dir: str, output_dir: str, config: dict, device: str = "auto"
-    ):
+    def __init__(self, arch_name: str, data_dir: str, output_dir: str, device: str = "auto"):
+        self.arch_name = arch_name
         self.data_dir = Path(data_dir)
         self.output_dir = Path(output_dir)
-        self.config = config
 
         # Setup device
         if device == "auto":
@@ -90,47 +154,46 @@ class SingleArchitectureTrainer:
 
         # Setup logging
         self.logger = setup_logging(self.output_dir / "training.log")
-
-        self.logger.info(f"🎯 Training: {config['arch_name']}")
-        self.logger.info(f"   📁 Output: {self.output_dir}")
-        self.logger.info(f"   🔧 Device: {self.device}")
-
+        
         # Training state
         self.current_epoch = 0
         self.best_val_loss = float("inf")
         self.patience_counter = 0
         self.training_history = []
 
+        self.logger.info(f"🎯 Training: {arch_name}")
+        self.logger.info(f"   📁 Output: {self.output_dir}")
+        self.logger.info(f"   🔧 Device: {self.device}")
+        self.logger.info(f"   🎯 Tasks: {PREDICTION_TASKS}")
+
     def setup_dataloaders(self):
         """Setup train and validation dataloaders."""
         self.logger.info("📚 Setting up dataloaders...")
 
-        # Train DataLoader
         self.train_loader = create_multimodal_dataloader(
             h5_file_path=str(self.data_dir / "train.h5"),
-            batch_size=self.config["batch_size"],
+            batch_size=BATCH_SIZE,
             shuffle=True,
-            num_workers=self.config.get("num_workers", 4),
-            pin_memory=True,
-            auto_normalize=True,
-            img_width=1920,
-            img_height=575,  # ROI height
-            use_class_features=False,
-            target_horizons=self.config["prediction_tasks"],
+            num_workers=NUM_WORKERS,
+            pin_memory=PIN_MEMORY,
+            auto_normalize=AUTO_NORMALIZE,
+            img_width=IMG_WIDTH,
+            img_height=IMG_HEIGHT,
+            use_class_features=USE_CLASS_FEATURES,
+            target_horizons=PREDICTION_TASKS,
         )
 
-        # Validation DataLoader
         self.val_loader = create_multimodal_dataloader(
             h5_file_path=str(self.data_dir / "val.h5"),
-            batch_size=self.config["batch_size"],
+            batch_size=BATCH_SIZE,
             shuffle=False,
-            num_workers=self.config.get("num_workers", 4),
-            pin_memory=True,
-            auto_normalize=True,
-            img_width=1920,
-            img_height=575,
-            use_class_features=False,
-            target_horizons=self.config["prediction_tasks"],
+            num_workers=NUM_WORKERS,
+            pin_memory=PIN_MEMORY,
+            auto_normalize=AUTO_NORMALIZE,
+            img_width=IMG_WIDTH,
+            img_height=IMG_HEIGHT,
+            use_class_features=USE_CLASS_FEATURES,
+            target_horizons=PREDICTION_TASKS,
         )
 
         self.logger.info(f"✅ DataLoaders ready:")
@@ -141,18 +204,22 @@ class SingleArchitectureTrainer:
         """Setup model, loss function, and optimizer."""
         self.logger.info("🤖 Setting up model...")
 
+        # Parse architecture
+        encoder_type, fusion_type, decoder_type = self.arch_name.split("_")
+
         # Create model
         model_config = {
-            "encoder_type": self.config["encoder_type"],
-            "fusion_type": self.config["fusion_type"],
-            "decoder_type": self.config["decoder_type"],
-            "telemetry_input_dim": 5,  # [SPEED, RPM, ACCELERATOR_POS_D, ENGINE_LOAD, GEAR]
-            "detection_input_dim_per_box": 6,  # [confidence, x1, y1, x2, y2, area]
-            "embedding_dim": self.config["embedding_dim"],
-            "hidden_dim": self.config["hidden_dim"],
-            "attention_num_heads": self.config["num_heads"],
-            "dropout_prob": self.config["dropout_prob"],
-            "prediction_tasks": self.config["prediction_tasks"],
+            "encoder_type": encoder_type,
+            "fusion_type": fusion_type,
+            "decoder_type": decoder_type,
+            "telemetry_input_dim": 5,
+            "detection_input_dim_per_box": 6,
+            "embedding_dim": EMBEDDING_DIM,
+            "hidden_dim": HIDDEN_DIM,
+            "attention_num_heads": NUM_HEADS,
+            "decoder_num_layers": DECODER_NUM_LAYERS,
+            "dropout_prob": DROPOUT_PROB,
+            "prediction_tasks": PREDICTION_TASKS,
             "max_detections": 12,
             "max_seq_length": 20,
         }
@@ -160,49 +227,43 @@ class SingleArchitectureTrainer:
         self.model = create_model_variant(model_config)
         self.model = self.model.to(self.device)
 
-        total_params = sum(
-            p.numel() for p in self.model.parameters() if p.requires_grad
-        )
+        total_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         self.logger.info(f"✅ Model: {total_params:,} parameters")
 
         # Setup loss function
         class_weights = calculate_class_weights(self.train_loader.dataset)
-
-        # Task weights for multi-task learning
-        task_weights = {
-            "brake_1s": 1.0,
-            "brake_2s": 0.8,
-            "coast_1s": 0.4,
-            "coast_2s": 0.3,
-        }
-
-        # Filter task weights to only include configured tasks
-        filtered_weights = {
-            task: weight
-            for task, weight in task_weights.items()
-            if task in self.config["prediction_tasks"]
-        }
-
-        self.loss_fn = MultiTaskLoss(filtered_weights, class_weights)
+        self.loss_fn = MultiTaskLoss(class_weights)
         self.loss_fn = self.loss_fn.to(self.device)
+
+        # Log class weights
+        for task_name in PREDICTION_TASKS:
+            if task_name in class_weights:
+                base_weight = class_weights[task_name][1].item()
+                multiplier = CLASS_WEIGHT_MULTIPLIERS.get(task_name, 1.0)
+                final_weight = base_weight * multiplier
+                self.logger.info(f"   ⚖️ {task_name}: pos_weight={final_weight:.2f}")
 
         # Setup optimizer
         self.optimizer = optim.AdamW(
             self.model.parameters(),
-            lr=self.config["learning_rate"],
-            weight_decay=self.config["weight_decay"],
+            lr=LEARNING_RATE,
+            weight_decay=WEIGHT_DECAY,
         )
 
         # Setup scheduler
         self.scheduler = ReduceLROnPlateau(
             self.optimizer,
             mode="min",
-            factor=0.5,
-            patience=5,
+            factor=SCHEDULER_FACTOR,
+            patience=SCHEDULER_PATIENCE,
+            min_lr=MIN_LR,
         )
 
         # Setup mixed precision scaler
-        self.scaler = GradScaler("cuda" if self.device.type == "cuda" else "cpu")
+        if MIXED_PRECISION:
+            self.scaler = GradScaler("cuda" if self.device.type == "cuda" else "cpu")
+        else:
+            self.scaler = None
 
         self.logger.info("✅ Model setup complete")
 
@@ -213,75 +274,98 @@ class SingleArchitectureTrainer:
             "model_state_dict": self.model.state_dict(),
             "optimizer_state_dict": self.optimizer.state_dict(),
             "scheduler_state_dict": self.scheduler.state_dict(),
-            "scaler_state_dict": self.scaler.state_dict(),
             "best_val_loss": self.best_val_loss,
-            "config": self.config,
+            "arch_name": self.arch_name,
             "training_history": self.training_history,
         }
+        
+        if self.scaler:
+            checkpoint["scaler_state_dict"] = self.scaler.state_dict()
 
         # Save latest checkpoint
-        checkpoint_path = self.output_dir / "latest_checkpoint.pt"
-        torch.save(checkpoint, checkpoint_path)
+        latest_path = self.output_dir / "latest_checkpoint.pt"
+        torch.save(checkpoint, latest_path)
 
         # Save best checkpoint
         if is_best:
             best_path = self.output_dir / "best_model.pt"
             torch.save(checkpoint, best_path)
-            self.logger.info(f"💾 Saved best model: {best_path}")
+            self.logger.info(f"💾 New best model saved (val_loss: {self.best_val_loss:.4f})")
 
     def train_epoch(self, epoch: int):
         """Train for one epoch."""
         self.model.train()
 
-        epoch_losses = {}
-        for task in self.config["prediction_tasks"]:
-            epoch_losses[f"loss_{task}"] = 0.0
+        epoch_losses = {f"loss_{task}": 0.0 for task in PREDICTION_TASKS}
         epoch_losses["loss_total"] = 0.0
-
         num_batches = 0
 
-        for batch_idx, batch in enumerate(self.train_loader):
+        train_pbar = tqdm(
+            self.train_loader,
+            desc=f"Epoch {epoch+1}/{EPOCHS} [Train]",
+            unit="batch",
+            leave=False,
+        )
+
+        for batch_idx, batch in enumerate(train_pbar):
             # Move data to device
             telemetry = batch["telemetry_seq"].to(self.device, non_blocking=True)
             detections = batch["detection_seq"].to(self.device, non_blocking=True)
             mask = batch["detection_mask"].to(self.device, non_blocking=True)
 
             targets = {}
-            for task_name in self.config["prediction_tasks"]:
+            for task_name in PREDICTION_TASKS:
                 targets[task_name] = batch["targets"][task_name].to(
                     self.device, non_blocking=True
                 )
 
             # Forward pass
-            with autocast(device_type=self.device.type):
+            if MIXED_PRECISION and self.scaler:
+                with autocast(device_type=self.device.type):
+                    predictions = self.model(telemetry, detections, mask)
+                    losses = self.loss_fn(predictions, targets)
+            else:
                 predictions = self.model(telemetry, detections, mask)
                 losses = self.loss_fn(predictions, targets)
 
             # Backward pass
             self.optimizer.zero_grad()
-            self.scaler.scale(losses["loss_total"]).backward()
-
-            # Gradient clipping
-            self.scaler.unscale_(self.optimizer)
-            torch.nn.utils.clip_grad_norm_(
-                self.model.parameters(), self.config.get("grad_clip_norm", 1.0)
-            )
-
-            # Optimizer step
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
+            
+            if MIXED_PRECISION and self.scaler:
+                self.scaler.scale(losses["loss_total"]).backward()
+                self.scaler.unscale_(self.optimizer)
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), GRAD_CLIP_NORM)
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+            else:
+                losses["loss_total"].backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), GRAD_CLIP_NORM)
+                self.optimizer.step()
 
             # Accumulate losses
             for loss_name, loss_value in losses.items():
                 epoch_losses[loss_name] += loss_value.item()
             num_batches += 1
 
-            # Log progress
-            if batch_idx % 100 == 0:
+            # Update progress bar
+            current_lr = self.optimizer.param_groups[0]['lr']
+            progress_dict = {
+                "loss": f"{losses['loss_total'].item():.4f}",
+                "lr": f"{current_lr:.2e}",
+            }
+            train_pbar.set_postfix(progress_dict)
+
+            # Log detailed progress
+            if batch_idx % LOG_INTERVAL == 0 and batch_idx > 0:
+                avg_loss = epoch_losses["loss_total"] / num_batches
                 self.logger.info(
-                    f"Epoch {epoch + 1}, Batch {batch_idx}/{len(self.train_loader)}, "
-                    f"Loss: {losses['loss_total'].item():.4f}"
+                    f"Epoch {epoch+1}, Batch {batch_idx}/{len(self.train_loader)}, "
+                    f"Loss: {losses['loss_total'].item():.4f}, "
+                    f"Avg: {avg_loss:.4f}, "
+                    f"LR: {current_lr:.2e}"
                 )
+
+        train_pbar.close()
 
         # Average losses
         for loss_name in epoch_losses:
@@ -293,28 +377,36 @@ class SingleArchitectureTrainer:
         """Validate for one epoch."""
         self.model.eval()
 
-        epoch_losses = {}
-        for task in self.config["prediction_tasks"]:
-            epoch_losses[f"loss_{task}"] = 0.0
+        epoch_losses = {f"loss_{task}": 0.0 for task in PREDICTION_TASKS}
         epoch_losses["loss_total"] = 0.0
-
         num_batches = 0
 
+        val_pbar = tqdm(
+            self.val_loader,
+            desc=f"Epoch {epoch+1}/{EPOCHS} [Val]",
+            unit="batch",
+            leave=False,
+        )
+
         with torch.no_grad():
-            for batch in self.val_loader:
+            for batch in val_pbar:
                 # Move data to device
                 telemetry = batch["telemetry_seq"].to(self.device, non_blocking=True)
                 detections = batch["detection_seq"].to(self.device, non_blocking=True)
                 mask = batch["detection_mask"].to(self.device, non_blocking=True)
 
                 targets = {}
-                for task_name in self.config["prediction_tasks"]:
+                for task_name in PREDICTION_TASKS:
                     targets[task_name] = batch["targets"][task_name].to(
                         self.device, non_blocking=True
                     )
 
                 # Forward pass
-                with autocast(device_type=self.device.type):
+                if MIXED_PRECISION:
+                    with autocast(device_type=self.device.type):
+                        predictions = self.model(telemetry, detections, mask)
+                        losses = self.loss_fn(predictions, targets)
+                else:
                     predictions = self.model(telemetry, detections, mask)
                     losses = self.loss_fn(predictions, targets)
 
@@ -322,6 +414,12 @@ class SingleArchitectureTrainer:
                 for loss_name, loss_value in losses.items():
                     epoch_losses[loss_name] += loss_value.item()
                 num_batches += 1
+
+                # Update progress bar
+                progress_dict = {"val_loss": f"{losses['loss_total'].item():.4f}"}
+                val_pbar.set_postfix(progress_dict)
+
+        val_pbar.close()
 
         # Average losses
         for loss_name in epoch_losses:
@@ -331,11 +429,17 @@ class SingleArchitectureTrainer:
 
     def train(self):
         """Main training loop."""
-        self.logger.info(f"🚀 Starting training for {self.config['epochs']} epochs")
+        self.logger.info(f"🚀 Starting training for {EPOCHS} epochs")
+        self.logger.info(f"   📊 Architecture: {self.arch_name}")
+        self.logger.info(f"   📦 Batch size: {BATCH_SIZE}")
+        self.logger.info(f"   📈 Learning rate: {LEARNING_RATE}")
+        self.logger.info(f"   🎯 Tasks: {PREDICTION_TASKS}")
 
         start_time = time.time()
 
-        for epoch in range(self.config["epochs"]):
+        epoch_pbar = tqdm(range(EPOCHS), desc="Training Progress", unit="epoch")
+
+        for epoch in epoch_pbar:
             self.current_epoch = epoch
 
             # Training phase
@@ -360,49 +464,53 @@ class SingleArchitectureTrainer:
             # Save checkpoint
             self.save_checkpoint(epoch, is_best)
 
-            # Log epoch results
-            self.logger.info(f"📊 Epoch {epoch + 1}/{self.config['epochs']}:")
-            self.logger.info(f"   🚆 Train Loss: {train_losses['loss_total']:.4f}")
-            self.logger.info(f"   🔍 Val Loss: {val_losses['loss_total']:.4f}")
-            self.logger.info(f"   🏆 Best Val Loss: {self.best_val_loss:.4f}")
-            self.logger.info(
-                f"   ⌛ Patience: {self.patience_counter}/{self.config['patience']}"
-            )
-            self.logger.info(f"   📈 LR: {self.optimizer.param_groups[0]['lr']:.6f}")
+            # Update epoch progress bar
+            current_lr = self.optimizer.param_groups[0]['lr']
+            epoch_info = {
+                "train_loss": f"{train_losses['loss_total']:.4f}",
+                "val_loss": f"{val_losses['loss_total']:.4f}",
+                "best": f"{self.best_val_loss:.4f}",
+                "lr": f"{current_lr:.2e}",
+                "patience": f"{self.patience_counter}/{PATIENCE}",
+            }
+            epoch_pbar.set_postfix(epoch_info)
+
+            # Detailed logging
+            self.logger.info(f"📊 Epoch {epoch + 1} Summary:")
+            self.logger.info(f"   🚆 Train - Total: {train_losses['loss_total']:.4f}")
+            for task in PREDICTION_TASKS:
+                task_loss = train_losses.get(f"loss_{task}", 0.0)
+                self.logger.info(f"     {task}: {task_loss:.4f}")
+            
+            self.logger.info(f"   🔍 Val - Total: {val_losses['loss_total']:.4f}")
+            for task in PREDICTION_TASKS:
+                task_loss = val_losses.get(f"loss_{task}", 0.0)
+                self.logger.info(f"     {task}: {task_loss:.4f}")
+            
+            self.logger.info(f"   🏆 Best: {self.best_val_loss:.4f}")
+            self.logger.info(f"   📈 LR: {current_lr:.6f}")
 
             # Store training history
             epoch_data = {
                 "epoch": epoch,
-                "train_losses": train_losses,
-                "val_losses": val_losses,
-                "learning_rate": self.optimizer.param_groups[0]["lr"],
+                "train_losses": {k: float(v) for k, v in train_losses.items()},
+                "val_losses": {k: float(v) for k, v in val_losses.items()},
+                "learning_rate": float(current_lr),
                 "is_best": is_best,
             }
             self.training_history.append(epoch_data)
 
             # Early stopping
-            if self.patience_counter >= self.config["patience"]:
+            if self.patience_counter >= PATIENCE:
                 self.logger.info(f"🛑 Early stopping at epoch {epoch + 1}")
                 break
+
+        epoch_pbar.close()
 
         # Save final training logs
         logs_path = self.output_dir / "training_logs.json"
         with open(logs_path, "w") as f:
-            # Convert numpy types to Python types for JSON serialization
-            serializable_history = []
-            for entry in self.training_history:
-                serializable_entry = {
-                    "epoch": int(entry["epoch"]),
-                    "train_losses": {
-                        k: float(v) for k, v in entry["train_losses"].items()
-                    },
-                    "val_losses": {k: float(v) for k, v in entry["val_losses"].items()},
-                    "learning_rate": float(entry["learning_rate"]),
-                    "is_best": bool(entry["is_best"]),
-                }
-                serializable_history.append(serializable_entry)
-
-            json.dump(serializable_history, f, indent=2)
+            json.dump(self.training_history, f, indent=2)
 
         total_time = time.time() - start_time
         self.logger.info(f"✅ Training completed in {total_time/60:.1f} minutes")
@@ -412,72 +520,30 @@ class SingleArchitectureTrainer:
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Train single architecture")
-    parser.add_argument(
-        "--data-dir",
-        type=str,
-        default="data/datasets/multimodal",
-        help="Path to dataset directory",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=str,
-        default="data/models/multimodal",
-        help="Output directory for model",
-    )
-    parser.add_argument(
-        "--architecture",
-        type=str,
-        default="simple_concat_lstm",
-        help="Architecture name (encoder_fusion_decoder)",
-    )
-    parser.add_argument("--epochs", type=int, default=50, help="Number of epochs")
-    parser.add_argument("--batch-size", type=int, default=64, help="Batch size")
-    parser.add_argument(
-        "--learning-rate", type=float, default=1e-4, help="Learning rate"
-    )
+    parser.add_argument("--data-dir", type=str, default="data/datasets/multimodal", help="Dataset directory")
+    parser.add_argument("--output-dir", type=str, default="data/models/multimodal", help="Output directory")
+    parser.add_argument("--architecture", type=str, default="simple_concat_lstm", help="Architecture (encoder_fusion_decoder)")
 
     args = parser.parse_args()
-
-    # Parse architecture
-    try:
-        encoder, fusion, decoder = args.architecture.split("_")
-    except ValueError:
-        print(f"❌ Invalid architecture format: {args.architecture}")
-        print("   Expected format: encoder_fusion_decoder")
-        return False
-
-    # Configuration
-    config = {
-        "arch_name": args.architecture,
-        "encoder_type": encoder,
-        "fusion_type": fusion,
-        "decoder_type": decoder,
-        # Model parameters
-        "embedding_dim": 128,
-        "hidden_dim": 256,
-        "num_heads": 8,
-        "dropout_prob": 0.15,
-        # Training parameters
-        "batch_size": args.batch_size,
-        "learning_rate": args.learning_rate,
-        "weight_decay": 1e-5,
-        "epochs": args.epochs,
-        "patience": 10,
-        "grad_clip_norm": 1.0,
-        "num_workers": 8,
-        # Tasks
-        "prediction_tasks": ["coast_1s", "coast_2s"],
-    }
 
     # Setup output directory
     output_dir = Path(args.output_dir) / args.architecture
 
-    # Initialize trainer
-    trainer = SingleArchitectureTrainer(
-        data_dir=args.data_dir, output_dir=str(output_dir), config=config
+    print(f"🎯 Training Configuration:")
+    print(f"   🏗️ Architecture: {args.architecture}")
+    print(f"   📦 Batch size: {BATCH_SIZE}")
+    print(f"   📈 Learning rate: {LEARNING_RATE}")
+    print(f"   🔄 Epochs: {EPOCHS}")
+    print(f"   🎯 Tasks: {PREDICTION_TASKS}")
+    print(f"   📁 Output: {output_dir}")
+
+    # Initialize and run trainer
+    trainer = Trainer(
+        arch_name=args.architecture,
+        data_dir=args.data_dir,
+        output_dir=str(output_dir)
     )
 
-    # Setup and train
     trainer.setup_dataloaders()
     trainer.setup_model()
     trainer.train()

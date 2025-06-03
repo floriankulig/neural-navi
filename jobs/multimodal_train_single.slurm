@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name=inf22086_single_arch_train
-#SBATCH --gres=gpu:1                        # Single GPU training
+#SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=12
 #SBATCH --mem=64G
-#SBATCH --time=12:00:00                     # 12 hours for full training
+#SBATCH --time=12:00:00
 #SBATCH --output=logs/single_train-%j.out
 #SBATCH --error=logs/single_train-%j.out
 
@@ -13,19 +13,23 @@ mkdir -p logs
 echo "🚀 Starting single architecture training..."
 echo "SLURM Job ID: $SLURM_JOB_ID"
 echo "SLURM Node: $SLURMD_NODENAME"
-echo "GPU: $CUDA_VISIBLE_DEVICES"
 
-# Configuration
+# ====================================
+# ARCHITECTURE CONFIGURATION
+# ====================================
+
+# Architecture to train (only thing to change)
 ARCHITECTURE=${ARCHITECTURE:-"simple_concat_lstm"}
-EPOCHS=${EPOCHS:-10}
-BATCH_SIZE=${BATCH_SIZE:-128}
-LEARNING_RATE=${LEARNING_RATE:-1e-5}
 
+# Data paths
+DATA_DIR=${DATA_DIR:-"data/datasets/multimodal"}
+OUTPUT_DIR=${OUTPUT_DIR:-"data/models/multimodal/coast"}
+
+echo ""
 echo "📋 Training Configuration:"
 echo "   🏗️ Architecture: $ARCHITECTURE"
-echo "   🔄 Epochs: $EPOCHS"
-echo "   📦 Batch Size: $BATCH_SIZE"
-echo "   📈 Learning Rate: $LEARNING_RATE"
+echo "   📁 Data Dir: $DATA_DIR"
+echo "   📁 Output Dir: $OUTPUT_DIR"
 
 # Create virtual environment if it doesn't exist
 if [ ! -d "venv" ]; then
@@ -38,9 +42,10 @@ source venv/bin/activate
 
 # Install dependencies
 echo "📦 Installing dependencies..."
-pip install torch torchvision torchaudio numpy h5py scikit-learn
+pip install torch torchvision torchaudio numpy h5py scikit-learn tqdm
 
 # Check GPU availability
+echo ""
 echo "🔍 GPU Check:"
 srun python3 -c "
 import torch
@@ -56,18 +61,22 @@ if torch.cuda.is_available():
 echo ""
 echo "🚀 Starting training..."
 srun python3 -u training/multimodal/train_single.py \
-    --data-dir data/datasets/multimodal \
-    --output-dir data/models/multimodal \
-    --architecture "$ARCHITECTURE" \
-    --epochs "$EPOCHS" \
-    --batch-size "$BATCH_SIZE" \
-    --learning-rate "$LEARNING_RATE"
+    --data-dir "$DATA_DIR" \
+    --output-dir "$OUTPUT_DIR" \
+    --architecture "$ARCHITECTURE"
 
 # Check if training succeeded
 if [ $? -eq 0 ]; then
     echo ""
     echo "🎉 Training completed successfully!"
-    echo "📁 Model saved to: data/models/multimodal/$ARCHITECTURE/"
+    echo "📁 Model saved to: $OUTPUT_DIR/$ARCHITECTURE/"
+    
+    # Show saved files
+    if [ -d "$OUTPUT_DIR/$ARCHITECTURE" ]; then
+        echo ""
+        echo "📋 Saved Files:"
+        ls -lh "$OUTPUT_DIR/$ARCHITECTURE"
+    fi
 else
     echo ""
     echo "❌ Training failed!"
