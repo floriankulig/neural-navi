@@ -119,7 +119,7 @@ class MultimodalDataset(Dataset):
             in_place=False,
         )
         print(
-            f"✅ Telemetry normalization applied (shape: {telemetry.shape} → {self.telemetry_data.shape})"
+            f"✅ Telemetry normalization applied (shape: {telemetry.shape} → {norm_telemetry.shape})"
         )
 
         if self.use_gear_onehot:
