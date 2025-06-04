@@ -49,7 +49,7 @@ GRAD_CLIP_NORM = 0.5
 PREDICTION_TASKS = ["coast_1s", "coast_2s", "coast_3s"]
 TASK_WEIGHTS = {
     "coast_1s": 1.0,
-    "coast_2s": 0.8, 
+    "coast_2s": 0.8,
     "coast_3s": 0.6,
 }
 CLASS_WEIGHT_MULTIPLIERS = {
@@ -65,7 +65,6 @@ MIN_LR = 1e-6
 
 # Data Configuration
 USE_CLASS_FEATURES = False
-AUTO_NORMALIZE = True
 IMG_WIDTH = 1920
 IMG_HEIGHT = 575
 
@@ -73,24 +72,24 @@ IMG_HEIGHT = 575
 NUM_WORKERS = 8
 PIN_MEMORY = True
 MIXED_PRECISION = True
-LOG_INTERVAL = 50
+LOG_INTERVAL = 20
 
 
 def setup_logging(log_file: str):
     """Setup logging configuration."""
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+
     file_handler = logging.FileHandler(log_file)
     file_handler.setFormatter(formatter)
-    
+
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
-    
+
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
-    
+
     return logger
 
 
@@ -107,8 +106,10 @@ class MultiTaskLoss(nn.Module):
                 base_pos_weight = class_weights[task_name][1]
                 multiplier = CLASS_WEIGHT_MULTIPLIERS.get(task_name, 1.0)
                 adjusted_pos_weight = base_pos_weight * multiplier
-                adjusted_pos_weight = max(adjusted_pos_weight, class_weights[task_name][0]) # Ensure it's not less than the negative class weight
-                
+                adjusted_pos_weight = max(
+                    adjusted_pos_weight, class_weights[task_name][0]
+                )  # Ensure it's not less than the negative class weight
+
                 self.criterions[task_name] = nn.BCEWithLogitsLoss(
                     pos_weight=adjusted_pos_weight
                 )
@@ -127,7 +128,7 @@ class MultiTaskLoss(nn.Module):
 
                 task_loss = self.criterions[task_name](pred, target)
                 losses[f"loss_{task_name}"] = task_loss
-                
+
                 task_weight = self.task_weights.get(task_name, 1.0)
                 total_loss += task_weight * task_loss
 
@@ -138,7 +139,9 @@ class MultiTaskLoss(nn.Module):
 class Trainer:
     """Single architecture trainer."""
 
-    def __init__(self, arch_name: str, data_dir: str, output_dir: str, device: str = "auto"):
+    def __init__(
+        self, arch_name: str, data_dir: str, output_dir: str, device: str = "auto"
+    ):
         self.arch_name = arch_name
         self.data_dir = Path(data_dir)
         self.output_dir = Path(output_dir)
@@ -154,7 +157,7 @@ class Trainer:
 
         # Setup logging
         self.logger = setup_logging(self.output_dir / "training.log")
-        
+
         # Training state
         self.current_epoch = 0
         self.best_val_loss = float("inf")
@@ -176,7 +179,6 @@ class Trainer:
             shuffle=True,
             num_workers=NUM_WORKERS,
             pin_memory=PIN_MEMORY,
-            auto_normalize=AUTO_NORMALIZE,
             img_width=IMG_WIDTH,
             img_height=IMG_HEIGHT,
             use_class_features=USE_CLASS_FEATURES,
@@ -189,7 +191,6 @@ class Trainer:
             shuffle=False,
             num_workers=NUM_WORKERS,
             pin_memory=PIN_MEMORY,
-            auto_normalize=AUTO_NORMALIZE,
             img_width=IMG_WIDTH,
             img_height=IMG_HEIGHT,
             use_class_features=USE_CLASS_FEATURES,
@@ -212,8 +213,8 @@ class Trainer:
             "encoder_type": encoder_type,
             "fusion_type": fusion_type,
             "decoder_type": decoder_type,
-            "telemetry_input_dim": 5,
-            "detection_input_dim_per_box": 6,
+            "telemetry_input_dim": 10,  # 4 ranges + 6 onehot-gears
+            "detection_input_dim_per_box": 6,  # confidence + bbox*4 + area
             "embedding_dim": EMBEDDING_DIM,
             "hidden_dim": HIDDEN_DIM,
             "attention_num_heads": NUM_HEADS,
@@ -227,7 +228,9 @@ class Trainer:
         self.model = create_model_variant(model_config)
         self.model = self.model.to(self.device)
 
-        total_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        total_params = sum(
+            p.numel() for p in self.model.parameters() if p.requires_grad
+        )
         self.logger.info(f"✅ Model: {total_params:,} parameters")
 
         # Setup loss function
@@ -278,7 +281,7 @@ class Trainer:
             "arch_name": self.arch_name,
             "training_history": self.training_history,
         }
-        
+
         if self.scaler:
             checkpoint["scaler_state_dict"] = self.scaler.state_dict()
 
@@ -290,7 +293,9 @@ class Trainer:
         if is_best:
             best_path = self.output_dir / "best_model.pt"
             torch.save(checkpoint, best_path)
-            self.logger.info(f"💾 New best model saved (val_loss: {self.best_val_loss:.4f})")
+            self.logger.info(
+                f"💾 New best model saved (val_loss: {self.best_val_loss:.4f})"
+            )
 
     def train_epoch(self, epoch: int):
         """Train for one epoch."""
@@ -330,7 +335,7 @@ class Trainer:
 
             # Backward pass
             self.optimizer.zero_grad()
-            
+
             if MIXED_PRECISION and self.scaler:
                 self.scaler.scale(losses["loss_total"]).backward()
                 self.scaler.unscale_(self.optimizer)
@@ -348,7 +353,7 @@ class Trainer:
             num_batches += 1
 
             # Update progress bar
-            current_lr = self.optimizer.param_groups[0]['lr']
+            current_lr = self.optimizer.param_groups[0]["lr"]
             progress_dict = {
                 "loss": f"{losses['loss_total'].item():.4f}",
                 "lr": f"{current_lr:.2e}",
@@ -465,7 +470,7 @@ class Trainer:
             self.save_checkpoint(epoch, is_best)
 
             # Update epoch progress bar
-            current_lr = self.optimizer.param_groups[0]['lr']
+            current_lr = self.optimizer.param_groups[0]["lr"]
             epoch_info = {
                 "train_loss": f"{train_losses['loss_total']:.4f}",
                 "val_loss": f"{val_losses['loss_total']:.4f}",
@@ -481,12 +486,12 @@ class Trainer:
             for task in PREDICTION_TASKS:
                 task_loss = train_losses.get(f"loss_{task}", 0.0)
                 self.logger.info(f"     {task}: {task_loss:.4f}")
-            
+
             self.logger.info(f"   🔍 Val - Total: {val_losses['loss_total']:.4f}")
             for task in PREDICTION_TASKS:
                 task_loss = val_losses.get(f"loss_{task}", 0.0)
                 self.logger.info(f"     {task}: {task_loss:.4f}")
-            
+
             self.logger.info(f"   🏆 Best: {self.best_val_loss:.4f}")
             self.logger.info(f"   📈 LR: {current_lr:.6f}")
 
@@ -520,9 +525,24 @@ class Trainer:
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Train single architecture")
-    parser.add_argument("--data-dir", type=str, default="data/datasets/multimodal", help="Dataset directory")
-    parser.add_argument("--output-dir", type=str, default="data/models/multimodal", help="Output directory")
-    parser.add_argument("--architecture", type=str, default="simple_concat_lstm", help="Architecture (encoder_fusion_decoder)")
+    parser.add_argument(
+        "--data-dir",
+        type=str,
+        default="data/datasets/multimodal",
+        help="Dataset directory",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="data/models/multimodal",
+        help="Output directory",
+    )
+    parser.add_argument(
+        "--architecture",
+        type=str,
+        default="simple_concat_lstm",
+        help="Architecture (encoder_fusion_decoder)",
+    )
 
     args = parser.parse_args()
 
@@ -539,9 +559,7 @@ def main():
 
     # Initialize and run trainer
     trainer = Trainer(
-        arch_name=args.architecture,
-        data_dir=args.data_dir,
-        output_dir=str(output_dir)
+        arch_name=args.architecture, data_dir=args.data_dir, output_dir=str(output_dir)
     )
 
     trainer.setup_dataloaders()
