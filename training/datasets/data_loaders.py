@@ -475,7 +475,7 @@ def calculate_class_weights(dataset: MultimodalDataset) -> Dict[str, torch.Tenso
     class_weights = {}
 
     for horizon, _ in stats.items():
-        pos_weight = 2 if "brake" in horizon else 1
+        pos_weight = 1.5 if "brake" in horizon else 1.25
         weights = torch.tensor([1.0, pos_weight])
         class_weights[horizon] = weights
         print(f"📊 {horizon} class weights: neg={weights[0]:.3f}, pos={weights[1]:.3f}")
