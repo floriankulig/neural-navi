@@ -17,12 +17,14 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 import json
 from tqdm import tqdm
 
+
 # Add project root to path for imports
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "training"))
 
 from model.factory import create_model_variant
+from utils.debug import NaNDebugger
 from datasets.data_loaders import create_multimodal_dataloader, calculate_class_weights
 
 
@@ -38,12 +40,21 @@ DECODER_NUM_LAYERS = 2
 DROPOUT_PROB = 0.15
 
 # Training Hyperparameters
-BATCH_SIZE = 256
+BATCH_SIZE = 32
 LEARNING_RATE = 1e-4
-WEIGHT_DECAY = 1e-4
+WEIGHT_DECAY = 1e-5
 EPOCHS = 40
 PATIENCE = EPOCHS // 5
 GRAD_CLIP_NORM = 0.5
+
+# Warmup for more stable training
+WARMUP_EPOCHS = EPOCHS // 10
+WARMUP_LR = LEARNING_RATE / 10  # Noch kleinere LR für Warmup
+
+# Learning Rate Scheduling
+SCHEDULER_FACTOR = 0.7
+SCHEDULER_PATIENCE = 8
+MIN_LR = 1e-6
 
 # Task Configuration - Testing coast events (more frequent than brake)
 PREDICTION_TASKS = ["coast_1s", "coast_2s", "coast_3s"]
@@ -58,10 +69,6 @@ CLASS_WEIGHT_MULTIPLIERS = {
     "coast_3s": 1.5,
 }
 
-# Learning Rate Scheduling
-SCHEDULER_FACTOR = 0.7
-SCHEDULER_PATIENCE = 8
-MIN_LR = 1e-6
 
 # Data Configuration
 USE_CLASS_FEATURES = False
@@ -270,6 +277,9 @@ class Trainer:
         else:
             self.scaler = None
 
+        for param_group in self.optimizer.param_groups:
+            param_group["lr"] = WARMUP_LR
+
         self.logger.info("✅ Model setup complete")
 
     def save_checkpoint(self, epoch: int, is_best: bool = False):
@@ -301,6 +311,13 @@ class Trainer:
 
     def train_epoch(self, epoch: int):
         """Train for one epoch."""
+        if epoch < WARMUP_EPOCHS:
+            progress = (epoch + 1) / WARMUP_EPOCHS
+            current_lr = WARMUP_LR + (LEARNING_RATE - WARMUP_LR) * progress
+            for param_group in self.optimizer.param_groups:
+                param_group["lr"] = current_lr
+            self.logger.info(f"🔥 Warmup LR: {current_lr:.6f}")
+
         self.model.train()
 
         epoch_losses = {f"loss_{task}": 0.0 for task in PREDICTION_TASKS}
@@ -523,6 +540,58 @@ class Trainer:
         self.logger.info(f"✅ Training completed in {total_time/60:.1f} minutes")
         self.logger.info(f"💾 Best validation loss: {self.best_val_loss:.4f}")
 
+    def debug_training_step(self, batch, batch_idx):
+        """Debug version of training step with NaN tracking."""
+
+        # Create debugger
+        debugger = NaNDebugger(self.model, self.logger.info)
+
+        # Check input data
+        self.logger.info(f"\n🔍 Debugging Batch {batch_idx}")
+        if debugger.check_data_batch(batch):
+            self.logger.error("❌ Input data contains NaN/Inf!")
+            return None
+
+        # Register hooks
+        debugger.register_hooks()
+
+        try:
+            # Move data to device
+            telemetry = batch["telemetry_seq"].to(self.device)
+            detections = batch["detection_seq"].to(self.device)
+            mask = batch["detection_mask"].to(self.device)
+
+            # Check after moving to device
+            debugger.check_tensor(telemetry, "telemetry_on_device")
+            debugger.check_tensor(detections, "detections_on_device")
+            debugger.check_tensor(mask, "mask_on_device")
+
+            # Check mask statistics
+            self.logger.info(
+                f"Mask stats: Total={mask.numel()}, True={mask.sum()}, False={(~mask).sum()}"
+            )
+
+            # Forward pass
+            predictions = self.model(telemetry, detections, mask)
+
+            # Check predictions
+            for task_name, pred in predictions.items():
+                debugger.check_tensor(pred, f"prediction.{task_name}")
+
+            # Compute loss
+            targets = {k: batch["targets"][k].to(self.device) for k in PREDICTION_TASKS}
+            losses = self.loss_fn(predictions, targets)
+
+            # Check losses
+            for loss_name, loss_value in losses.items():
+                debugger.check_tensor(loss_value, f"loss.{loss_name}")
+
+        finally:
+            debugger.remove_hooks()
+            debugger.summarize()
+
+        return losses
+
 
 def main():
     """Main entry point."""
@@ -566,7 +635,11 @@ def main():
 
     trainer.setup_dataloaders()
     trainer.setup_model()
-    trainer.train()
+    # trainer.debug_training_step(
+    #     trainer.train_loader.dataset[0:1], batch_idx=0
+    # )  # Debugging a single batch
+    # print("✅ Training setup complete. Debugging a single batch...")
+    trainer.train()  # Uncomment to run full training
 
     return True
 
