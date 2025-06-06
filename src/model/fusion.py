@@ -321,7 +321,9 @@ class ObjectQueryFusion(FusionModule):
         self.output_dim = output_dim or embedding_dim * 2
 
         # Learnable queries
-        self.object_queries = nn.Parameter(torch.randn(1, num_queries, embedding_dim))
+        self.object_queries = nn.Parameter(
+            torch.randn(1, num_queries, embedding_dim) * 0.02
+        )  # Initialize with small values
 
         # Multi-head attention for queries attending to telemetry
         self.query_to_tel_attention = nn.MultiheadAttention(

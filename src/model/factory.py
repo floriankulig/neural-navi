@@ -5,6 +5,7 @@
 
 from typing import Any, Dict
 import torch
+import torch.nn as nn
 from pathlib import Path
 import sys
 
@@ -22,6 +23,26 @@ from src.model.fusion import (
 from src.model.decoder import LSTMOutputDecoder, TransformerOutputDecoder
 from src.model.base import BrakingPredictionBaseModel
 import time
+
+
+def init_attention_weights(module):
+    """Initialize attention modules for better stability."""
+    if isinstance(module, nn.MultiheadAttention):
+        # Xavier initialization with smaller variance
+        nn.init.xavier_uniform_(module.in_proj_weight, gain=0.5)
+        if module.in_proj_bias is not None:
+            nn.init.constant_(module.in_proj_bias, 0.0)
+
+        # Output projection
+        nn.init.xavier_uniform_(module.out_proj.weight, gain=0.5)
+        if module.out_proj.bias is not None:
+            nn.init.constant_(module.out_proj.bias, 0.0)
+
+    elif isinstance(module, nn.Linear):
+        # Smaller initialization for linear layers in attention modules
+        nn.init.xavier_uniform_(module.weight, gain=0.5)
+        if module.bias is not None:
+            nn.init.constant_(module.bias, 0.0)
 
 
 def create_model_variant(config: Dict[str, Any]) -> BrakingPredictionBaseModel:
@@ -127,6 +148,12 @@ def create_model_variant(config: Dict[str, Any]) -> BrakingPredictionBaseModel:
 
     # --- Gesamtmodell erstellen ---
     model = BrakingPredictionBaseModel(encoder, fusion, decoder)
+
+    # Apply special initialization for attention models
+    if any(x in [encoder_type, fusion_type] for x in ["attention", "cross", "query"]):
+        model.apply(init_attention_weights)
+        print("🎯 Applied attention-specific weight initialization")
+
     return model
 
 
@@ -184,12 +211,12 @@ if __name__ == "__main__":
                 dummy_mask[b, s, :num_valid] = True
 
     # Forward-Pass mit Zeitmessung
-    
+
     with torch.no_grad():
         start_time = time.time()
         predictions = model(dummy_telemetry, dummy_detections, dummy_mask)
         end_time = time.time()
-        
+
     inference_time = end_time - start_time
     print(f"Inference Zeit: {inference_time:.4f} Sekunden")
 
