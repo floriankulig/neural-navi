@@ -40,33 +40,33 @@ DECODER_NUM_LAYERS = 2
 DROPOUT_PROB = 0.15
 
 # Training Hyperparameters
-BATCH_SIZE = 32
-LEARNING_RATE = 1e-4
-WEIGHT_DECAY = 1e-5
+BATCH_SIZE = 128
+LEARNING_RATE = 5e-5
+WEIGHT_DECAY = 1e-4
 EPOCHS = 40
 PATIENCE = EPOCHS // 5
-GRAD_CLIP_NORM = 0.5
+GRAD_CLIP_NORM = 1
 
 # Warmup for more stable training
 WARMUP_EPOCHS = EPOCHS // 10
-WARMUP_LR = LEARNING_RATE / 10  # Noch kleinere LR für Warmup
+WARMUP_LR = 1e-6  # Noch kleinere LR für Warmup
 
 # Learning Rate Scheduling
-SCHEDULER_FACTOR = 0.7
-SCHEDULER_PATIENCE = 8
-MIN_LR = 1e-6
+SCHEDULER_FACTOR = 0.85
+SCHEDULER_PATIENCE = 6
+MIN_LR = 1e-7
 
 # Task Configuration - Testing coast events (more frequent than brake)
-PREDICTION_TASKS = ["coast_1s", "coast_2s", "coast_3s"]
+PREDICTION_TASKS = ["coast_1s",
+#  "coast_2s"
+ ]
 TASK_WEIGHTS = {
     "coast_1s": 1.0,
-    "coast_2s": 0.8,
-    "coast_3s": 0.6,
+    # "coast_2s": 0.8,
 }
 CLASS_WEIGHT_MULTIPLIERS = {
     "coast_1s": 1.5,
-    "coast_2s": 1.5,
-    "coast_3s": 1.5,
+    # "coast_2s": 1.5,
 }
 
 
