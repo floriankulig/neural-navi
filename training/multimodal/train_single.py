@@ -99,6 +99,29 @@ def setup_logging(log_file: str):
 
     return logger
 
+def monitor_gradients(model, epoch, batch_idx):
+    """Monitor gradients for NaN detection."""
+    total_norm = 0
+    nan_params = []
+    
+    for name, param in model.named_parameters():
+        if param.grad is not None:
+            if torch.isnan(param.grad).any():
+                nan_params.append(name)
+            param_norm = param.grad.data.norm(2)
+            total_norm += param_norm.item() ** 2
+    
+    total_norm = total_norm ** (1. / 2)
+    
+    if nan_params:
+        logging.error(f"🚨 NaN gradients in epoch {epoch}, batch {batch_idx}:")
+        for param_name in nan_params:
+            logging.error(f"  - {param_name}")
+    
+    if total_norm > 100:  # Threshold for gradient explosion
+        logging.warning(f"⚠️ Large gradient norm: {total_norm:.3f}")
+    
+    return total_norm, len(nan_params) > 0
 
 class MultiTaskLoss(nn.Module):
     """Multi-task loss with weighted BCE."""
@@ -365,6 +388,23 @@ class Trainer:
                 losses["loss_total"].backward()
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), GRAD_CLIP_NORM)
                 self.optimizer.step()
+
+            # Im Training Loop nach backward():
+            if MIXED_PRECISION and self.scaler:
+                self.scaler.scale(losses["loss_total"]).backward()
+                self.scaler.unscale_(self.optimizer)
+                
+                # Monitor gradients BEFORE clipping
+                grad_norm, has_nan_grads = monitor_gradients(self.model, epoch, batch_idx)
+                
+                if has_nan_grads:
+                    logging.error("🚨 Skipping optimizer step due to NaN gradients")
+                    self.scaler.update()  # Still update scaler
+                    continue
+                
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), GRAD_CLIP_NORM)
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
 
             # Accumulate losses
             for loss_name, loss_value in losses.items():
