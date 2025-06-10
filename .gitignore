@@ -6,6 +6,7 @@ recordings/
 data/datasets/multimodal
 data/datasets/processed
 data/datasets/raw
+data/evaluation/*
 data/datasets/*labels*
 data/datasets/*.yaml
 
