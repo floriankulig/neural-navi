@@ -27,10 +27,10 @@ project_root = script_dir.parent
 sys.path.insert(0, str(project_root))
 
 # Import project modules
-from device import setup_device
+from src.utils.device import setup_device
 from ultralytics import YOLO
-from config import DEFAULT_VISION_MODEL, DEFAULT_IMAGE_ROI
-from imageprocessor import ImageProcessor
+from src.utils.config import DEFAULT_VISION_MODEL, DEFAULT_IMAGE_ROI
+from src.processing.image_processor import ImageProcessor
 
 # Set Matplotlib style for scientific paper quality plots
 plt.style.use("seaborn-v0_8-whitegrid")
@@ -57,7 +57,7 @@ plt.rcParams.update(
 )
 
 # Constants
-METRICS_DIR = Path("metrics")
+METRICS_DIR = Path("evaluation")
 TEST_IMAGES_DIR = METRICS_DIR / "test_images"
 RESULTS_DIR = METRICS_DIR / "model_benchmark_results"
 
@@ -66,7 +66,7 @@ RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Vehicle classes in YOLOv11: car(2), motorcycle(3), bus(5), truck(7)
 VEHICLE_CLASSES = [2, 3, 5, 7]
-VEHICLE_CLASSES_OWN = [1, 2, 3, 4]
+VEHICLE_CLASSES_OWN = [0, 1, 2, 3, 4]
 
 
 def load_test_images(
