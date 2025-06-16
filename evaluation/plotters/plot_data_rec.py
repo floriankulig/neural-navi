@@ -1,18 +1,23 @@
+from pathlib import Path
+import sys
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.dates import DateFormatter
 import os
 import seaborn as sns
-from drive_recorder import TIME_FORMAT_LOG
+
+# Add project root to path for imports
+script_dir = Path(__file__).parent
+project_root = script_dir.parent.parent
+sys.path.insert(0, str(project_root))
+
+from src.utils.config import RECORDING_OUTPUT_PATH, TIME_FORMAT_LOG
 
 
 # Funktion zum Auflisten der CSV-Dateien im logs-Ordner
 def list_recordings(directory):
     return [f for f in os.listdir(directory)]
 
-
-# Verzeichnis, in dem sich die Logs befinden
-RECORDING_OUTPUT_PATH = "recordings"
 
 # Auflisten der verfügbaren Recording-Ordner
 recordings = list_recordings(RECORDING_OUTPUT_PATH)
@@ -102,7 +107,7 @@ plt.suptitle(f"Vehicle Data Analysis - {selected_recording}", fontsize=16)
 plt.tight_layout()
 
 # Speichern des Plots
-output_filename = f"plots/{os.path.splitext(selected_recording)[0]}.png"
+output_filename = f"evaluation/plots/{os.path.splitext(selected_recording)[0]}.png"
 plt.savefig(output_filename)
 # plt.show()
 plt.close()
