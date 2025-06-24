@@ -1,5 +1,5 @@
 # Testing Data
-*.jpg
+evaluation/*/*.jpg
 recordings/
 
 # Project Data
