@@ -247,17 +247,25 @@ class CrossModalAttentionFusion(FusionModule):
             # Attention mask (True = ignore)
             attn_mask = ~mask_t
 
-
             # Check for valid detections
             has_valid_detections = (~mask_t).any(dim=1)  # (batch_size,)
-            
+            zero_rows = (det_t == 0).all(dim=-1)
+
+            if attn_mask is None:
+                key_padding_mask = zero_rows
+            else:
+                key_padding_mask = attn_mask | zero_rows  # Logical OR to combine
+
             if not has_valid_detections.any():
                 # No valid detections - use telemetry only
                 relevant_dets = torch.zeros_like(tel_t.squeeze(1))
             else:
                 # Telemetry queries relevant detections
                 relevant_dets, attn_weights = self.tel_to_det_attention(
-                    query=tel_t, key=det_t, value=det_t, key_padding_mask=attn_mask
+                    query=tel_t,
+                    key=det_t,
+                    value=det_t,
+                    key_padding_mask=key_padding_mask,
                 )
 
                 relevant_dets = relevant_dets.squeeze(1)  # [batch_size, embedding_dim]
