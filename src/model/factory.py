@@ -9,11 +9,19 @@ import torch.nn as nn
 from pathlib import Path
 import sys
 
+
 # Add project root to path for imports
 script_dir = Path(__file__).parent
 project_root = script_dir.parent.parent  # Go up two levels: model/ -> src/ -> root/
 sys.path.insert(0, str(project_root))
 
+from src.utils.feature_config import (
+    MAX_DETECTIONS_PER_FRAME,
+    PREDICTION_TASKS,
+    SEQUENCE_LENGTH,
+    get_detection_input_dim_per_box,
+    get_telemetry_input_dim,
+)
 from src.model.encoder import AttentionInputEncoder, SimpleInputEncoder
 from src.model.fusion import (
     CrossModalAttentionFusion,
@@ -161,8 +169,8 @@ if __name__ == "__main__":
     # Konfigurationsbeispiel
     example_config = {
         # Modalitätsdimensionen
-        "telemetry_input_dim": 6,  # z.B. Geschwindigkeit, RPM, Gaspedalposition, Motorlast, Gang, etc.
-        "detection_input_dim_per_box": 11,  # z.B. 5x Klasse (OneHot), Confidence, x1, y1, x2, y2, Fläche
+        "telemetry_input_dim": get_telemetry_input_dim(),
+        "detection_input_dim_per_box": get_detection_input_dim_per_box(),
         # Architekturtypen
         "encoder_type": "simple",  # "simple" oder "attention"
         # "fusion_type": "cross_attention",  # "concat", "query" oder "cross_attention"
@@ -175,17 +183,12 @@ if __name__ == "__main__":
         "decoder_num_layers": 3,
         "dropout_prob": 0.3,
         # Spezifische Parameter
-        "prediction_tasks": [
-            "brake_1s",
-            "brake_2s",
-            "coast_1s",
-            "coast_2s",
-        ],  # Zeithorizonte in Sekunden
+        "prediction_tasks": PREDICTION_TASKS,  # Zeithorizonte in Sekunden
         "include_brake_force": False,
         "include_uncertainty": False,
         "use_attention_weights": True,
-        "max_detections": 12,
-        "max_seq_length": 20,
+        "max_detections": MAX_DETECTIONS_PER_FRAME,
+        "max_seq_length": SEQUENCE_LENGTH,
     }
 
     # Modell erstellen

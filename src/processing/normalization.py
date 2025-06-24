@@ -2,26 +2,34 @@
 Unified normalization utilities for telemetry and detection features.
 """
 
+import sys
 import torch
 import numpy as np
 from typing import Dict, Tuple, Optional
+from pathlib import Path
 
+# Add project root to path for imports
+script_dir = Path(__file__).parent
+project_root = (
+    script_dir.parent.parent
+)  # Go up two levels: processing/ -> src/ -> root/
+sys.path.insert(0, str(project_root))
 
 # ====================================
 # TELEMETRY NORMALIZATION
 # ====================================
 
 # Telemetry feature ranges for German highway driving
-TELEMETRY_RANGES = {
-    "SPEED": (0.0, 150.0),  # km/h - German Autobahn max
-    "RPM": (650.0, 4500.0),  # RPM - typical passenger car range
-    "ACCELERATOR_POS_D": (0.0, 100.0),  # % - already normalized
-    "ENGINE_LOAD": (0.0, 100.0),  # % - already normalized
-}
-
-# Feature names in order (GEAR handled separately with one-hot)
-CONTINUOUS_TELEMETRY_FEATURES = ["SPEED", "RPM", "ACCELERATOR_POS_D", "ENGINE_LOAD"]
-GEAR_CLASSES = 6  # 0=neutral, 1-5=gears
+from src.utils.feature_config import (
+    BASE_DETECTION_DIM,
+    CONTINUOUS_TELEMETRY_DIM,
+    GEAR_DIM,
+    NUM_DETECTION_CLASSES,
+    TELEMETRY_RANGES,
+    CONTINUOUS_TELEMETRY_FEATURES,
+    GEAR_CLASSES,
+    get_telemetry_input_dim,
+)
 
 
 def normalize_telemetry_features(
@@ -53,9 +61,9 @@ def normalize_telemetry_features(
 
     # Extract continuous features (first 4) and gear (last)
     continuous_features = telemetry_seq[
-        ..., :4
+        ..., :CONTINUOUS_TELEMETRY_DIM
     ]  # [SPEED, RPM, ACCELERATOR_POS_D, ENGINE_LOAD]
-    gear_values = telemetry_seq[..., 4]  # [GEAR]
+    gear_values = telemetry_seq[..., CONTINUOUS_TELEMETRY_DIM]  # [GEAR]
 
     # Normalize continuous features
     for i, feature_name in enumerate(CONTINUOUS_TELEMETRY_FEATURES):
@@ -97,13 +105,6 @@ def normalize_telemetry_features(
         )
 
     return normalized_telemetry
-
-
-def get_telemetry_input_dim(use_gear_onehot: bool = True) -> int:
-    """Get the input dimension for telemetry after normalization."""
-    continuous_dim = len(CONTINUOUS_TELEMETRY_FEATURES)  # 4
-    gear_dim = GEAR_CLASSES if use_gear_onehot else 1  # 7 or 1
-    return continuous_dim + gear_dim
 
 
 # ====================================
@@ -149,17 +150,17 @@ def normalize_detection_features(
     *batch_dims, max_detections, feature_dim = detection_seq.shape
 
     # Expected feature order after class_id removal: [confidence, x1, y1, x2, y2, area]
-    if feature_dim != 6:
+    if feature_dim != BASE_DETECTION_DIM:
         print(
             f"WARNING: Expected 6 features without classes after class_id removal, got {feature_dim}"
         )
-        if feature_dim == 7 and n_vehicle_classes is None:
+        if feature_dim == BASE_DETECTION_DIM + 1 and n_vehicle_classes is None:
             print(
                 "INFO: Input seems to still contain class_id but no number of classes to onehot-encode specified - this should be handled earlier"
             )
 
     # If class_id is present, convert to one-hot encoding
-    if feature_dim == 7 and n_vehicle_classes is not None:
+    if feature_dim == BASE_DETECTION_DIM + 1 and n_vehicle_classes is not None:
         # Extract class_id and confidence
         class_ids = detection_seq[..., 0].long()
         confidence = detection_seq[..., 1]
@@ -241,12 +242,12 @@ if __name__ == "__main__":
     batch_size, seq_len = 4, 10
     sample_telemetry_base = torch.tensor(
         [
-            [120.0, 2500.0, 45.0, 35.0, 4.0],  # Highway driving, Gear 4
-            [80.0, 1800.0, 20.0, 25.0, 3.0],  # City driving, Gear 3
-            [200.0, 4500.0, 80.0, 60.0, 5.0],  # Fast driving, Gear 5
-            [0.0, 800.0, 0.0, 5.0, 0.0],  # Idle/neutral, Gear 0
+            [120.0, 2500.0, 45.0, 35.0, 4.0, 0],  # Highway driving, Gear 4
+            [80.0, 1800.0, 20.0, 25.0, 3.0, 0],  # City driving, Gear 3
+            [200.0, 4500.0, 80.0, 60.0, 5.0, 1],  # Fast driving, Gear 5
+            [0.0, 800.0, 0.0, 5.0, 0.0, 0],  # Idle/neutral, Gear 0
         ]
-    )  # Shape: (4, 5)
+    )  # Shape: (4, 6)
 
     # Reshape to (batch_size, 1, features) then expand to (batch_size, seq_len, features)
     sample_telemetry = sample_telemetry_base.unsqueeze(1).expand(
@@ -263,8 +264,12 @@ if __name__ == "__main__":
     )
     print(f"\nNormalized with one-hot GEAR:")
     print(f"  Shape: {normalized_onehot.shape}")
-    print(f"  Continuous features [0:4]: {normalized_onehot[0, 0, :4]}")
-    print(f"  GEAR one-hot [4:11]: {normalized_onehot[0, 0, 4:]}")
+    print(
+        f"  Continuous features [0:4]: {normalized_onehot[0, 0, :CONTINUOUS_TELEMETRY_DIM]}"
+    )
+    print(
+        f"  GEAR one-hot [{CONTINUOUS_TELEMETRY_DIM}:{CONTINUOUS_TELEMETRY_DIM + GEAR_DIM}]: {normalized_onehot[0, 0, CONTINUOUS_TELEMETRY_DIM:]}"
+    )
 
     # Test without one-hot encoding
     normalized_continuous = normalize_telemetry_features(

@@ -22,6 +22,13 @@ import torch
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
+from src.utils.feature_config import (
+    DEFAULT_VISION_MODEL,
+    MULTI_CLASS_CONFIG,
+    SINGLE_CLASS_CONFIG,
+    YOLO_BASE_CONFIDENCE,
+    YOLO_IMG_SIZE,
+)
 from utils.config import RECORDING_OUTPUT_PATH, TIME_FORMAT_LOG
 from utils.device import setup_device
 from processing.image_processor import ImageProcessor
@@ -36,22 +43,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Model and annotation configuration
-DEFAULT_MODEL_PATH = "boxyn1hard.pt"
-DEFAULT_MODEL_IMG_SIZE = 704
-DEFAULT_CONFIDENCE = 0.25
 SAVE_PROGRESS_INTERVAL = 100
-
-# Vehicle classes configuration
-SINGLE_CLASS_CONFIG = {0: {"name": "vehicle", "confidence": 0.25}}
-
-MULTI_CLASS_CONFIG = {
-    0: {"name": "person", "confidence": 0.25},
-    1: {"name": "vehicle.car", "confidence": 0.25},
-    2: {"name": "vehicle.truck", "confidence": 0.25},
-    3: {"name": "vehicle.motorcycle", "confidence": 0.25},
-    4: {"name": "vehicle.bus", "confidence": 0.25},
-    5: {"name": "trafficcone", "confidence": 0.25},
-}
 
 # Custom ROIs for different recordings (from training/datasets/annotation.py)
 RECORDINGS_ROIS_MAP = {
@@ -79,10 +71,10 @@ class AutoAnnotator:
 
     def __init__(
         self,
-        model_path: str = DEFAULT_MODEL_PATH,
+        model_path: str = DEFAULT_VISION_MODEL,
         use_multiclass: bool = False,
-        confidence_threshold: float = DEFAULT_CONFIDENCE,
-        img_size: int = DEFAULT_MODEL_IMG_SIZE,
+        confidence_threshold: float = YOLO_BASE_CONFIDENCE,
+        img_size: int = YOLO_IMG_SIZE,
         device: Optional[str] = None,
     ):
         self.model_path = Path(model_path)
@@ -447,7 +439,7 @@ def main():
         help="Path to recordings directory",
     )
     parser.add_argument(
-        "--model", type=str, default=DEFAULT_MODEL_PATH, help="Path to YOLO model"
+        "--model", type=str, default=DEFAULT_VISION_MODEL, help="Path to YOLO model"
     )
     parser.add_argument(
         "--multiclass",
@@ -458,13 +450,13 @@ def main():
     parser.add_argument(
         "--confidence",
         type=float,
-        default=DEFAULT_CONFIDENCE,
+        default=YOLO_BASE_CONFIDENCE,
         help="Confidence threshold for detections",
     )
     parser.add_argument(
         "--img-size",
         type=int,
-        default=DEFAULT_MODEL_IMG_SIZE,
+        default=YOLO_IMG_SIZE,
         help="Image size for YOLO inference",
     )
     parser.add_argument(

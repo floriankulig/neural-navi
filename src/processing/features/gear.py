@@ -1,6 +1,14 @@
+from pathlib import Path
+import sys
+
+
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.utils.feature_config import GEAR_RATIOS_PLOTTED, IDLE_RPM
+
+
 class GearCalculator:
-    IDLE_RPM = 920
-    GEAR_RATIOS_PLOTTED = [9.5, 16.5, 27.5, 40.5, 53.5]
     GEAR_RATIOS = [ratio / 1000 for ratio in GEAR_RATIOS_PLOTTED]
     GEAR_RATIO_ERROR_VARIANCE_BASE = 1 / 1000
     GEAR_RATIO_ERROR_VARIANCE_PROGRESSION = 0.025
@@ -50,7 +58,7 @@ class GearCalculator:
     ) -> bool:
         """Check if the vehicle is in true neutral."""
         return (
-            vehicle_speed - 5 < gear_ratio * self.IDLE_RPM < vehicle_speed + 5
+            vehicle_speed - 5 < gear_ratio * IDLE_RPM < vehicle_speed + 5
             and accelerator_pos < 1
             and engine_load > 1
         )

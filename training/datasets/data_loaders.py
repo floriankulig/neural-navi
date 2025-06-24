@@ -19,9 +19,18 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 from processing.normalization import (
     normalize_telemetry_features,
     normalize_detection_features,
-    get_telemetry_input_dim,
+)
+
+from src.utils.feature_config import (
+    BASE_DETECTION_FEATURES,
+    CONTINUOUS_TELEMETRY_DIM,
     CONTINUOUS_TELEMETRY_FEATURES,
     GEAR_CLASSES,
+    INCLUDE_CLASS_FEATURES_IN_MODEL,
+    NUM_DETECTION_CLASSES,
+    USE_GEAR_ONEHOT,
+    get_telemetry_input_dim,
+    get_roi_dimensions,
 )
 
 
@@ -35,12 +44,10 @@ class MultimodalDataset(Dataset):
         self,
         h5_file_path: str,
         load_into_memory: bool = False,
-        use_class_features: bool = True,
         target_horizons: List[str] = None,
         normalize: bool = True,
-        use_gear_onehot: bool = True,
-        img_width: int = 1920,
-        img_height: int = 575,
+        img_width: int = None,
+        img_height: int = None,
     ):
         """
         Initialize the multimodal dataset with full feature normalization.
@@ -48,20 +55,17 @@ class MultimodalDataset(Dataset):
         Args:
             h5_file_path: Path to HDF5 file
             load_into_memory: Whether to load entire dataset into RAM
-            use_class_features: Whether to include class_id in detection features
             target_horizons: List of target horizon names to load
             normalize_: Whether to normalize features to [0,1]
-            use_gear_onehot: Whether to one-hot encode GEAR (recommended for categorical)
             img_width: Image width for normalization
             img_height: Image height for normalization (consider ROI cropping)
         """
         self.h5_file_path = Path(h5_file_path)
         self.load_into_memory = load_into_memory
-        self.use_class_features = use_class_features
         self.normalize = normalize
-        self.use_gear_onehot = use_gear_onehot
-        self.img_width = img_width
-        self.img_height = img_height
+        default_roi_width, default_roi_height = get_roi_dimensions()
+        self.img_width = img_width or default_roi_width
+        self.img_height = img_height or default_roi_height
 
         if target_horizons is None:
             target_horizons = ["brake_1s", "brake_2s", "coast_1s", "coast_2s"]
@@ -82,15 +86,15 @@ class MultimodalDataset(Dataset):
         print(f"📚 Loaded dataset: {self.h5_file_path.name}")
         print(f"   📊 Sequences: {self.num_sequences}")
         print(f"   💾 Memory loading: {self.load_into_memory}")
-        print(f"   🏷️ Use class features: {self.use_class_features}")
+        print(f"   🏷️ Use class features: {INCLUDE_CLASS_FEATURES_IN_MODEL}")
         print(f"   🎯 Target horizons: {self.target_horizons}")
         print(f"   🔧 Normalize features: {self.normalize}")
-        print(f"   🎲 GEAR one-hot encoding: {self.use_gear_onehot}")
+        print(f"   🎲 GEAR one-hot encoding: {USE_GEAR_ONEHOT}")
         if self.normalize:
-            expected_telemetry_dim = get_telemetry_input_dim(self.use_gear_onehot)
+            expected_telemetry_dim = get_telemetry_input_dim(USE_GEAR_ONEHOT)
             print(f"   📐 Detection normalization: {self.img_width}x{self.img_height}")
             print(
-                f"   📊 Expected telemetry dim: {expected_telemetry_dim} (4 continuous + {GEAR_CLASSES if self.use_gear_onehot else 1} gear)"
+                f"   📊 Expected telemetry dim: {expected_telemetry_dim} ({CONTINUOUS_TELEMETRY_DIM} continuous + {GEAR_CLASSES if USE_GEAR_ONEHOT else 1} gear)"
             )
 
     def _safe_decode(self, value):
@@ -115,14 +119,14 @@ class MultimodalDataset(Dataset):
         print("🔧 Applying telemetry normalization to dataset...")
         norm_telemetry = normalize_telemetry_features(
             telemetry,
-            use_gear_onehot=self.use_gear_onehot,
+            use_gear_onehot=USE_GEAR_ONEHOT,
             in_place=False,
         )
         print(
             f"✅ Telemetry normalization applied (shape: {telemetry.shape} → {norm_telemetry.shape})"
         )
 
-        if self.use_gear_onehot:
+        if USE_GEAR_ONEHOT:
             print(f"   🎲 GEAR one-hot encoded: {GEAR_CLASSES} classes")
 
         # Apply detection normalization to entire dataset if in memory
@@ -162,14 +166,14 @@ class MultimodalDataset(Dataset):
                 raise ValueError(f"Missing target horizons: {missing_horizons}")
 
         # Calculate actual dimensions after processing
-        if self.use_class_features:
+        if INCLUDE_CLASS_FEATURES_IN_MODEL:
             self.actual_detection_dim = self.detection_dim_per_box
         else:
             # Remove class_id (first feature)
             self.actual_detection_dim = self.detection_dim_per_box - 1
 
         # Calculate telemetry dimension after normalization
-        self.actual_telemetry_dim = get_telemetry_input_dim(self.use_gear_onehot)
+        self.actual_telemetry_dim = get_telemetry_input_dim(USE_GEAR_ONEHOT)
 
     def _load_data_into_memory(self):
         """Load entire dataset into memory for faster access."""
@@ -240,9 +244,9 @@ class MultimodalDataset(Dataset):
 
     def _process_detection_features(self, detections: torch.Tensor) -> torch.Tensor:
         """Process detection features based on configuration."""
-        if not self.use_class_features:
+        if not INCLUDE_CLASS_FEATURES_IN_MODEL:
             # Remove class_id (first feature) and keep [confidence, x1, y1, x2, y2, area]
-            detections = detections[..., 1:]
+            detections = detections[..., NUM_DETECTION_CLASSES:]
 
         return detections
 
@@ -361,7 +365,7 @@ class MultimodalDataset(Dataset):
             }
 
         # GEAR statistics
-        if self.use_gear_onehot:
+        if USE_GEAR_ONEHOT:
             gear_start_idx = len(continuous_features)
             gear_onehot = all_telemetry[
                 ..., gear_start_idx : gear_start_idx + GEAR_CLASSES
@@ -385,7 +389,7 @@ class MultimodalDataset(Dataset):
         # Detection statistics (only valid detections)
         if all_masks.any():
             valid_detections = all_detections[all_masks]
-            detection_feature_names = ["confidence", "x1", "y1", "x2", "y2", "area"]
+            detection_feature_names = BASE_DETECTION_FEATURES
 
             for i, feature_name in enumerate(detection_feature_names):
                 if valid_detections.numel() > 0:
@@ -399,7 +403,7 @@ class MultimodalDataset(Dataset):
 
         stats["summary"] = {
             "sample_size": sample_size,
-            "use_gear_onehot": self.use_gear_onehot,
+            "use_gear_onehot": USE_GEAR_ONEHOT,
             "telemetry_input_dim": self.actual_telemetry_dim,
             "detection_input_dim": self.actual_detection_dim,
         }
@@ -414,12 +418,10 @@ def create_multimodal_dataloader(
     num_workers: int = 8,
     pin_memory: bool = True,
     load_into_memory: bool = False,
-    use_class_features: bool = True,
     target_horizons: List[str] = None,
     normalize: bool = True,
-    use_gear_onehot: bool = True,
-    img_width: int = 1920,
-    img_height: int = 575,  # ROI height
+    img_width: int = None,
+    img_height: int = None,  # ROI height
     **kwargs,
 ) -> DataLoader:
     """
@@ -443,14 +445,13 @@ def create_multimodal_dataloader(
     Returns:
         Configured DataLoader
     """
+
     # Create dataset
     dataset = MultimodalDataset(
         h5_file_path=h5_file_path,
         load_into_memory=load_into_memory,
-        use_class_features=use_class_features,
         target_horizons=target_horizons,
         normalize=normalize,
-        use_gear_onehot=use_gear_onehot,
         img_width=img_width,
         img_height=img_height,
     )
@@ -601,7 +602,6 @@ def main():
             load_into_memory=args.use_memory,
             use_class_features=False,  # Test without class features
             normalize=True,
-            use_gear_onehot=True,
         )
 
         print(f"✅ Dataset loaded successfully")

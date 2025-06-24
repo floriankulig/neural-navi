@@ -23,6 +23,13 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "training"))
 
+from utils.feature_config import (
+    DETECTION_INPUT_DIM_PER_BOX,
+    MAX_DETECTIONS_PER_FRAME,
+    SEQUENCE_LENGTH,
+    TELEMETRY_INPUT_DIM,
+    PREDICTION_TASKS,
+)
 from model.factory import create_model_variant
 from utils.debug import NaNDebugger
 from datasets.data_loaders import create_multimodal_dataloader, calculate_class_weights
@@ -57,10 +64,6 @@ SCHEDULER_PATIENCE = 6
 MIN_LR = 1e-7
 
 # Task Configuration - Testing coast events (more frequent than brake)
-PREDICTION_TASKS = [
-    "coast_1s",
-    #  "coast_2s"
-]
 TASK_WEIGHTS = {
     "coast_1s": 1.0,
     # "coast_2s": 0.8,
@@ -72,9 +75,6 @@ CLASS_WEIGHT_MULTIPLIERS = {
 
 
 # Data Configuration
-USE_CLASS_FEATURES = False
-IMG_WIDTH = 1920
-IMG_HEIGHT = 575
 
 # Training Infrastructure
 NUM_WORKERS = 8
@@ -213,9 +213,6 @@ class Trainer:
             num_workers=NUM_WORKERS,
             pin_memory=PIN_MEMORY,
             load_into_memory=True,
-            img_width=IMG_WIDTH,
-            img_height=IMG_HEIGHT,
-            use_class_features=USE_CLASS_FEATURES,
             target_horizons=PREDICTION_TASKS,
         )
 
@@ -226,9 +223,6 @@ class Trainer:
             num_workers=NUM_WORKERS,
             pin_memory=PIN_MEMORY,
             load_into_memory=True,
-            img_width=IMG_WIDTH,
-            img_height=IMG_HEIGHT,
-            use_class_features=USE_CLASS_FEATURES,
             target_horizons=PREDICTION_TASKS,
         )
 
@@ -248,16 +242,16 @@ class Trainer:
             "encoder_type": encoder_type,
             "fusion_type": fusion_type,
             "decoder_type": decoder_type,
-            "telemetry_input_dim": 10,  # 4 ranges + 6 onehot-gears
-            "detection_input_dim_per_box": 6,  # confidence + bbox*4 + area
+            "telemetry_input_dim": TELEMETRY_INPUT_DIM,  # 4 ranges (+ 1 Brake Signal) + 6 onehot-gears
+            "detection_input_dim_per_box": DETECTION_INPUT_DIM_PER_BOX,  # confidence + bbox*4 + area
             "embedding_dim": EMBEDDING_DIM,
             "hidden_dim": HIDDEN_DIM,
             "attention_num_heads": NUM_HEADS,
             "decoder_num_layers": DECODER_NUM_LAYERS,
             "dropout_prob": DROPOUT_PROB,
             "prediction_tasks": PREDICTION_TASKS,
-            "max_detections": 12,
-            "max_seq_length": 20,
+            "max_detections": MAX_DETECTIONS_PER_FRAME,
+            "max_seq_length": SEQUENCE_LENGTH,
         }
 
         self.model = create_model_variant(model_config)

@@ -16,11 +16,18 @@ import logging
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 
+
 # Add project root to path for imports
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.utils.config import RECORDING_OUTPUT_PATH, TIME_FORMAT_LOG
+from src.utils.feature_config import (
+    COAST_THRESHOLD_PERCENT,
+    FUTURE_HORIZONS,
+    SAMPLING_INTERVAL_S,
+    SAMPLING_RATE_HZ,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -29,12 +36,6 @@ logging.basicConfig(
     handlers=[logging.FileHandler("generate_labels.log"), logging.StreamHandler()],
 )
 logger = logging.getLogger(__name__)
-
-# Label generation configuration
-SAMPLING_RATE_HZ = 2.0  # 2Hz sampling rate
-SAMPLING_INTERVAL_S = 1.0 / SAMPLING_RATE_HZ  # 0.5 seconds per frame
-COAST_THRESHOLD_PERCENT = 10.0  # Coast when accelerator < 10%
-FUTURE_HORIZONS = [1, 2, 3, 4, 5]  # Future horizons in seconds
 
 # Column mappings for telemetry data
 EXPECTED_COLUMNS = [
@@ -471,7 +472,7 @@ def main():
         help="Accelerator threshold for coasting detection (percentage)",
     )
     parser.add_argument(
-        "--force", action="store_true", help="Overwrite existing labels"
+        "--force", default=True, action="store_true", help="Overwrite existing labels"
     )
     parser.add_argument(
         "--max-recordings",

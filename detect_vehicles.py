@@ -13,9 +13,11 @@ import matplotlib.pyplot as plt
 from src.utils.device import setup_device
 from ultralytics import YOLO
 
+from src.utils.feature_config import (
+    DEFAULT_VISION_MODEL,
+)
 from src.utils.config import (
     DEFAULT_IMAGE_ROI,
-    DEFAULT_VISION_MODEL,
     RECORDING_OUTPUT_PATH,
 )
 from src.processing.image_processor import ImageProcessor
