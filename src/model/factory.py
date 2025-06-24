@@ -183,7 +183,6 @@ if __name__ == "__main__":
         ],  # Zeithorizonte in Sekunden
         "include_brake_force": False,
         "include_uncertainty": False,
-        "bidirectional_fusion": False,
         "use_attention_weights": True,
         "max_detections": 12,
         "max_seq_length": 20,
