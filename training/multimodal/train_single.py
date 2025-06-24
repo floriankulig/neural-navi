@@ -40,7 +40,7 @@ DECODER_NUM_LAYERS = 2
 DROPOUT_PROB = 0.15
 
 # Training Hyperparameters
-BATCH_SIZE = 128
+BATCH_SIZE = 16
 LEARNING_RATE = 5e-5
 WEIGHT_DECAY = 1e-4
 EPOCHS = 40
@@ -57,9 +57,10 @@ SCHEDULER_PATIENCE = 6
 MIN_LR = 1e-7
 
 # Task Configuration - Testing coast events (more frequent than brake)
-PREDICTION_TASKS = ["coast_1s",
-#  "coast_2s"
- ]
+PREDICTION_TASKS = [
+    "coast_1s",
+    #  "coast_2s"
+]
 TASK_WEIGHTS = {
     "coast_1s": 1.0,
     # "coast_2s": 0.8,
@@ -99,29 +100,31 @@ def setup_logging(log_file: str):
 
     return logger
 
+
 def monitor_gradients(model, epoch, batch_idx):
     """Monitor gradients for NaN detection."""
     total_norm = 0
     nan_params = []
-    
+
     for name, param in model.named_parameters():
         if param.grad is not None:
             if torch.isnan(param.grad).any():
                 nan_params.append(name)
             param_norm = param.grad.data.norm(2)
             total_norm += param_norm.item() ** 2
-    
-    total_norm = total_norm ** (1. / 2)
-    
+
+    total_norm = total_norm ** (1.0 / 2)
+
     if nan_params:
         logging.error(f"🚨 NaN gradients in epoch {epoch}, batch {batch_idx}:")
         for param_name in nan_params:
             logging.error(f"  - {param_name}")
-    
+
     if total_norm > 100:  # Threshold for gradient explosion
         logging.warning(f"⚠️ Large gradient norm: {total_norm:.3f}")
-    
+
     return total_norm, len(nan_params) > 0
+
 
 class MultiTaskLoss(nn.Module):
     """Multi-task loss with weighted BCE."""
@@ -393,15 +396,17 @@ class Trainer:
             if MIXED_PRECISION and self.scaler:
                 self.scaler.scale(losses["loss_total"]).backward()
                 self.scaler.unscale_(self.optimizer)
-                
+
                 # Monitor gradients BEFORE clipping
-                grad_norm, has_nan_grads = monitor_gradients(self.model, epoch, batch_idx)
-                
+                grad_norm, has_nan_grads = monitor_gradients(
+                    self.model, epoch, batch_idx
+                )
+
                 if has_nan_grads:
                     logging.error("🚨 Skipping optimizer step due to NaN gradients")
                     self.scaler.update()  # Still update scaler
                     continue
-                
+
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), GRAD_CLIP_NORM)
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
@@ -580,57 +585,375 @@ class Trainer:
         self.logger.info(f"✅ Training completed in {total_time/60:.1f} minutes")
         self.logger.info(f"💾 Best validation loss: {self.best_val_loss:.4f}")
 
-    def debug_training_step(self, batch, batch_idx):
-        """Debug version of training step with NaN tracking."""
+    def debug_detailed_batch(self):
+        """Detailed debugging of problematic batch elements."""
+        from utils.nan_debug import debug_model_forward, check_tensor_health
 
-        # Create debugger
-        debugger = NaNDebugger(self.model, self.logger.info)
+        self.model.eval()  # Set to eval to avoid dropout randomness
 
-        # Check input data
-        self.logger.info(f"\n🔍 Debugging Batch {batch_idx}")
-        if debugger.check_data_batch(batch):
-            self.logger.error("❌ Input data contains NaN/Inf!")
-            return None
+        # Get the same batch
+        batch = next(iter(self.train_loader))
 
-        # Register hooks
-        debugger.register_hooks()
+        telemetry = batch["telemetry_seq"].to(self.device)
+        detections = batch["detection_seq"].to(self.device)
+        mask = batch["detection_mask"].to(self.device)
 
-        try:
-            # Move data to device
-            telemetry = batch["telemetry_seq"].to(self.device)
-            detections = batch["detection_seq"].to(self.device)
-            mask = batch["detection_mask"].to(self.device)
+        print(f"📊 Batch Analysis:")
+        print(f"   Batch size: {telemetry.shape[0]}")
+        print(f"   Sequence length: {telemetry.shape[1]}")
+        print(f"   Max detections: {detections.shape[2]}")
 
-            # Check after moving to device
-            debugger.check_tensor(telemetry, "telemetry_on_device")
-            debugger.check_tensor(detections, "detections_on_device")
-            debugger.check_tensor(mask, "mask_on_device")
+        # Analyze detection masks per batch element
+        mask_stats = []
+        for b in range(mask.shape[0]):
+            valid_detections_per_frame = (~mask[b]).sum(
+                dim=1
+            )  # Valid detections per time step
+            total_valid = valid_detections_per_frame.sum().item()
+            frames_with_no_detections = (valid_detections_per_frame == 0).sum().item()
 
-            # Check mask statistics
-            self.logger.info(
-                f"Mask stats: Total={mask.numel()}, True={mask.sum()}, False={(~mask).sum()}"
+            mask_stats.append(
+                {
+                    "batch_idx": b,
+                    "total_valid_detections": total_valid,
+                    "frames_with_no_detections": frames_with_no_detections,
+                    "avg_detections_per_frame": (
+                        total_valid / mask.shape[1] if mask.shape[1] > 0 else 0
+                    ),
+                }
             )
 
-            # Forward pass
-            predictions = self.model(telemetry, detections, mask)
+        # Sort by problematic cases (many frames without detections)
+        mask_stats.sort(key=lambda x: x["frames_with_no_detections"], reverse=True)
 
-            # Check predictions
-            for task_name, pred in predictions.items():
-                debugger.check_tensor(pred, f"prediction.{task_name}")
+        print(f"\n📋 Top 10 potentially problematic batch elements:")
+        for i, stats in enumerate(mask_stats[:10]):
+            print(
+                f"   {i+1}. Batch {stats['batch_idx']}: "
+                f"{stats['frames_with_no_detections']}/{mask.shape[1]} empty frames, "
+                f"avg {stats['avg_detections_per_frame']:.1f} detections/frame"
+            )
 
-            # Compute loss
-            targets = {k: batch["targets"][k].to(self.device) for k in PREDICTION_TASKS}
-            losses = self.loss_fn(predictions, targets)
+        # Debug model forward
+        print(f"\n🔍 Running detailed model forward debugging...")
+        output, nan_batch_indices = debug_model_forward(
+            self.model, telemetry, detections, mask
+        )
 
-            # Check losses
-            for loss_name, loss_value in losses.items():
-                debugger.check_tensor(loss_value, f"loss.{loss_name}")
+        if nan_batch_indices:
+            print(f"\n🚨 NaN found in batch indices: {nan_batch_indices}")
 
-        finally:
-            debugger.remove_hooks()
-            debugger.summarize()
+            # Analyze the problematic batch elements
+            for idx in nan_batch_indices[:5]:  # Analyze first 5 problematic ones
+                print(f"\n📊 Analyzing problematic batch element {idx}:")
 
-        return losses
+                # Check detection mask for this element
+                element_mask = mask[idx]  # (seq_len, max_detections)
+                valid_per_frame = (~element_mask).sum(dim=1)
+
+                print(f"   Valid detections per frame: {valid_per_frame.tolist()}")
+                print(
+                    f"   Frames with 0 detections: {(valid_per_frame == 0).sum().item()}"
+                )
+                print(f"   Total valid detections: {valid_per_frame.sum().item()}")
+
+                # Check telemetry for this element
+                element_tel = telemetry[idx]
+                print(
+                    f"   Telemetry range: [{element_tel.min().item():.3f}, {element_tel.max().item():.3f}]"
+                )
+                element_det = detections[idx]
+                print(
+                    f"   Detections range: [{element_det.min().item():.3f}, {element_det.max().item():.3f}]"
+                )
+
+                # Check if telemetry has any extreme values
+                if torch.isnan(element_tel).any():
+                    print(f"   🚨 NaN in input telemetry!")
+                if torch.isinf(element_tel).any():
+                    print(f"   🚨 Inf in input telemetry!")
+
+        return len(nan_batch_indices) == 0
+
+    def debug_single_batch(self):
+        """Enhanced debug to find NaN source."""
+        self.model.eval()
+
+        # Get one batch
+        batch = next(iter(self.train_loader))
+
+        telemetry = batch["telemetry_seq"].to(self.device)
+        detections = batch["detection_seq"].to(self.device)
+        mask = batch["detection_mask"].to(self.device)
+
+        print("🔍 Testing model components step by step...")
+
+        # Step 1: Input encoder
+        print("\n📝 Step 1: Input Encoder")
+        try:
+            encoded_inputs = self.model.input_encoder(telemetry, detections, mask)
+
+            for key, value in encoded_inputs.items():
+                if isinstance(value, torch.Tensor) and torch.isnan(value).any():
+                    print(f"🚨 NaN in input encoder output: {key}")
+                    return False
+            print("✅ Input encoder OK")
+        except Exception as e:
+            print(f"❌ Input encoder failed: {e}")
+            return False
+
+        # Step 2: Fusion module (COMPLETE debugging)
+        print("\n🔗 Step 2: Fusion Module - COMPLETE DEBUG")
+        try:
+            # Manual step-by-step fusion debugging
+            tel_features = encoded_inputs["telemetry_features"]
+            det_features = encoded_inputs["detection_features"]
+            det_mask = encoded_inputs["detection_mask"]
+            print(
+                f"   Input shapes: tel={tel_features.shape}, det={det_features.shape}"
+            )
+
+            # Check if it's CrossModalAttentionFusion
+            if hasattr(self.model.fusion_module, "tel_to_det_attention"):
+                print("   Debugging CrossModalAttentionFusion step by step...")
+
+                # Import the debug function
+                from utils.nan_debug import debug_cross_modal_attention_step
+
+                batch_size, seq_len, embedding_dim = tel_features.shape
+                fused_list = []
+
+                # Test ALL timestöeps manually
+                for t in range(seq_len):
+                    # Get the current sequence timestamp for verification
+                    if t < tel_features.shape[1] and hasattr(batch, "timestamps"):
+                        current_timestamp = (
+                            batch["timestamps"][0][t].item()
+                            if batch["timestamps"] is not None
+                            else f"step_{t}"
+                        )
+                    else:
+                        current_timestamp = f"step_{t}"
+
+                    self.logger.info(f"🕒 Current timestamp: {current_timestamp}")
+                    tel_t = tel_features[:, t].unsqueeze(1)
+                    det_t = det_features[:, t]
+                    mask_t = det_mask[:, t]
+
+                    # Debug this specific timestep
+                    if not debug_cross_modal_attention_step(tel_t, det_t, mask_t, t):
+                        print(f"❌ Attention failed at timestep {t}")
+                        return False
+
+                    # Manual attention computation (mirroring the actual fusion)
+                    attn_mask = ~mask_t
+                    # Logging der Eingabetensoren
+                    self.logger.info(f"Timestep {t}:")
+                    self.logger.info(
+                        f"  Query (tel_t) - min: {tel_t.min().item()}, max: {tel_t.max().item()}, mean: {tel_t.mean().item()}"
+                    )
+                    self.logger.info(
+                        f"  Key/Value (det_t) - min: {det_t.min().item()}, max: {det_t.max().item()}, mean: {det_t.mean().item()}"
+                    )
+                    self.logger.info(
+                        f"  Query contains nan: {torch.isnan(tel_t).any().item()}"
+                    )
+                    self.logger.info(
+                        f"  Key/Value contains nan: {torch.isnan(det_t).any().item()}"
+                    )
+                    self.logger.info(
+                        f"  Query contains inf: {torch.isinf(tel_t).any().item()}"
+                    )
+                    self.logger.info(
+                        f"  Key/Value contains inf: {torch.isinf(det_t).any().item()}"
+                    )
+                    try:
+                        tel_t = tel_t / 16
+                        det_t = det_t / 16
+                        # Logging der Eingabetensoren
+                        self.logger.info(f"Scaled by / 16:")
+                        self.logger.info(
+                            f"  Query (tel_t) - min: {tel_t.min().item()}, max: {tel_t.max().item()}, mean: {tel_t.mean().item()}"
+                        )
+                        self.logger.info(
+                            f"  Key/Value (det_t) - min: {det_t.min().item()}, max: {det_t.max().item()}, mean: {det_t.mean().item()}"
+                        )
+                        self.logger.info(
+                            f"  Query contains nan: {torch.isnan(tel_t).any().item()}"
+                        )
+                        self.logger.info(
+                            f"  Key/Value contains nan: {torch.isnan(det_t).any().item()}"
+                        )
+                        self.logger.info(
+                            f"  Query contains inf: {torch.isinf(tel_t).any().item()}"
+                        )
+                        self.logger.info(
+                            f"  Key/Value contains inf: {torch.isinf(det_t).any().item()}"
+                        )
+                        self.logger.info(f"Has valid detections: {mask_t.any()}")
+                        self.logger.info(
+                            f"Query zero rows: {(tel_t == 0).all(dim=-1).any()}"
+                        )
+                        self.logger.info(
+                            f"Key zero rows: {(det_t == 0).all(dim=-1).any()}"
+                        )
+                        relevant_dets, attn_weights = (
+                            self.model.fusion_module.tel_to_det_attention(
+                                query=tel_t,
+                                key=det_t,
+                                value=det_t,
+                                key_padding_mask=attn_mask,
+                                need_weights=True,
+                            )
+                        )
+                        # Logging der Attention-Gewichte
+                        self.logger.info(
+                            f"  Attention Weights - min: {attn_weights.min().item()}, max: {attn_weights.max().item()}, mean: {attn_weights.mean().item()}"
+                        )
+                        self.logger.info(
+                            f"  Attention Weights contains nan: {torch.isnan(attn_weights).any().item()}"
+                        )
+                        self.logger.info(
+                            f"  Attention Weights contains inf: {torch.isinf(attn_weights).any().item()}"
+                        )
+
+                        # Logging der Ausgabe
+                        self.logger.info(
+                            f"  Output (relevant_dets) - min: {relevant_dets.min().item()}, max: {relevant_dets.max().item()}, mean: {relevant_dets.mean().item()}"
+                        )
+                        self.logger.info(
+                            f"  Output contains nan: {torch.isnan(relevant_dets).any().item()}"
+                        )
+                        self.logger.info(
+                            f"  Output contains inf: {torch.isinf(relevant_dets).any().item()}"
+                        )
+                        relevant_dets = relevant_dets.squeeze(1)
+
+                        if torch.isnan(attn_weights).any():
+                            print(f"🚨 NaN in attn_weights at timestep {t}")
+                        if torch.isnan(relevant_dets).any():
+                            print(f"🚨 NaN in attention output at timestep {t}")
+                            return False
+
+                        # Apply norm
+                        relevant_dets = (
+                            self.model.fusion_module.norm_relevant_detections(
+                                relevant_dets
+                            )
+                        )
+
+                        if torch.isnan(relevant_dets).any():
+                            print(
+                                f"🚨 NaN after norm_relevant_detections at timestep {t}"
+                            )
+                            return False
+
+                        # Concatenate features
+                        features_to_fuse = [tel_t.squeeze(1), relevant_dets]
+                        fused_input_t = torch.cat(features_to_fuse, dim=-1)
+
+                        if torch.isnan(fused_input_t).any():
+                            print(f"🚨 NaN after concatenation at timestep {t}")
+                            return False
+
+                        fused_list.append(fused_input_t)
+                        print(f"   ✅ Timestep {t} OK")
+
+                    except Exception as e:
+                        print(f"❌ Manual attention failed at timestep {t}: {e}")
+                        return False
+
+                # Stack along time dimension
+                print("   🔗 Stacking fused inputs...")
+                fused_inputs = torch.stack(fused_list, dim=1)
+
+                if torch.isnan(fused_inputs).any():
+                    print("🚨 NaN after stacking fused inputs!")
+                    return False
+
+                print(f"   Fused inputs shape: {fused_inputs.shape}")
+                print(
+                    f"   Fused inputs range: [{fused_inputs.min().item():.4f}, {fused_inputs.max().item():.4f}]"
+                )
+
+                # Apply fusion MLP
+                print("   🧠 Applying fusion MLP...")
+                fused_output = self.model.fusion_module.fusion_mlp(fused_inputs)
+
+                if torch.isnan(fused_output).any():
+                    print("🚨 NaN after fusion MLP!")
+                    return False
+
+                print(
+                    f"   MLP output range: [{fused_output.min().item():.4f}, {fused_output.max().item():.4f}]"
+                )
+
+                # Apply residual connection
+                print("   🔄 Applying residual connection...")
+                residual = self.model.fusion_module.residual_projection(fused_inputs)
+
+                if torch.isnan(residual).any():
+                    print("🚨 NaN in residual projection!")
+                    return False
+
+                print(
+                    f"   Residual range: [{residual.min().item():.4f}, {residual.max().item():.4f}]"
+                )
+
+                fused_features = fused_output + residual
+
+                if torch.isnan(fused_features).any():
+                    print("🚨 NaN after adding residual!")
+                    return False
+
+                # Apply final norm
+                print("   📏 Applying final normalization...")
+                fused_features = self.model.fusion_module.norm_fusion(fused_features)
+
+                if torch.isnan(fused_features).any():
+                    print("🚨 NaN after final normalization!")
+                    return False
+
+                print(
+                    f"   Final output range: [{fused_features.min().item():.4f}, {fused_features.max().item():.4f}]"
+                )
+                print("✅ Manual fusion computation successful!")
+
+            # Now run actual fusion to compare
+            print("   🏃 Running actual fusion module...")
+            actual_fused_features = self.model.fusion_module(encoded_inputs)
+
+            if torch.isnan(actual_fused_features).any():
+                print("🚨 NaN in actual fusion module output!")
+                print("   This is strange since manual computation worked...")
+                return False
+
+            print("✅ Fusion module OK")
+
+        except Exception as e:
+            print(f"❌ Fusion module failed: {e}")
+            import traceback
+
+            traceback.print_exc()
+            return False
+
+        # Step 3: Output decoder
+        print("\n📤 Step 3: Output Decoder")
+        try:
+            predictions = self.model.output_decoder(actual_fused_features)
+
+            for key, value in predictions.items():
+                if torch.isnan(value).any():
+                    print(f"🚨 NaN in output decoder: {key}")
+                    return False
+            print("✅ Output decoder OK")
+
+        except Exception as e:
+            print(f"❌ Output decoder failed: {e}")
+            return False
+
+        print("✅ All components passed detailed testing!")
+        return True
 
 
 def main():
@@ -679,7 +1002,17 @@ def main():
     #     trainer.train_loader.dataset[0:1], batch_idx=0
     # )  # Debugging a single batch
     # print("✅ Training setup complete. Debugging a single batch...")
-    trainer.train()  # Uncomment to run full training
+    # trainer.train()  # Uncomment to run full training
+
+    # DEBUG: Test single batch first
+    print("🧪 Testing single batch...")
+    if not trainer.debug_single_batch():
+        print("❌ Single batch test failed!")
+        return False
+
+    print("✅ Single batch test passed, starting full training...")
+    trainer.train()
+    return True
 
     return True
 
