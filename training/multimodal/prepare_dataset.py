@@ -5,7 +5,6 @@ Dataset Preparation Pipeline for Multimodal Training
 Prepares sliding-window sequences from recordings and splits into train/val/test sets.
 """
 
-import os
 import sys
 import h5py
 import numpy as np
@@ -16,9 +15,7 @@ import argparse
 import logging
 import json
 import ast
-from typing import Dict, List, Optional, Tuple, Any
-from collections import defaultdict
-from sklearn.model_selection import train_test_split
+from typing import Dict, List, Optional, Tuple
 import random
 
 # Add project root to path for imports
@@ -26,6 +23,16 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.utils.config import RECORDING_OUTPUT_PATH, TIME_FORMAT_LOG
+from src.utils.feature_config import (
+    BASE_DETECTION_DIM,
+    MAX_DETECTIONS_PER_FRAME,
+    SEQUENCE_LENGTH,
+    SEQUENCE_STRIDE,
+    TELEMETRY_FEATURES,
+    TEST_SPLIT,
+    TRAIN_SPLIT,
+    VAL_SPLIT,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -35,18 +42,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Dataset configuration
-SEQUENCE_LENGTH = 20  # 20 frames = 10 seconds at 2Hz
-SEQUENCE_STRIDE = 4  # 4 frames = 2 seconds stride
-MAX_DETECTIONS = 12  # Maximum objects per frame
-TRAIN_SPLIT = 0.70
-VAL_SPLIT = 0.15
-TEST_SPLIT = 0.15
-
 # Feature dimensions
-TELEMETRY_FEATURES = ["SPEED", "RPM", "ACCELERATOR_POS_D", "ENGINE_LOAD", "GEAR"]
 TELEMETRY_DIM = len(TELEMETRY_FEATURES)
-DETECTION_DIM_PER_BOX = 7  # [class_id, confidence, x1, y1, x2, y2, area]
+DETECTION_DIM_PER_BOX = (
+    1 + BASE_DETECTION_DIM
+)  # [class_id, confidence, x1, y1, x2, y2, area]
 
 # Output paths
 DEFAULT_OUTPUT_DIR = "data/datasets/multimodal"
@@ -62,7 +62,7 @@ class DatasetPreparator:
         output_dir: str = DEFAULT_OUTPUT_DIR,
         sequence_length: int = SEQUENCE_LENGTH,
         sequence_stride: int = SEQUENCE_STRIDE,
-        max_detections: int = MAX_DETECTIONS,
+        max_detections: int = MAX_DETECTIONS_PER_FRAME,
         random_seed: int = 42,
     ):
         self.output_dir = Path(output_dir)
@@ -854,7 +854,7 @@ def main():
     parser.add_argument(
         "--max-detections",
         type=int,
-        default=MAX_DETECTIONS,
+        default=MAX_DETECTIONS_PER_FRAME,
         help="Maximum number of detections per frame",
     )
     parser.add_argument(
