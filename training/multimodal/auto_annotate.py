@@ -22,7 +22,7 @@ import torch
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from src.utils.feature_config import (
+from utils.feature_config import (
     DEFAULT_VISION_MODEL,
     MULTI_CLASS_CONFIG,
     SINGLE_CLASS_CONFIG,
