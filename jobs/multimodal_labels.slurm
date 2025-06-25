@@ -26,7 +26,6 @@ pip install pandas numpy tqdm
 # Generate future labels
 srun python3 -u training/multimodal/generate_labels.py \
     --recordings-dir data/recordings \
-    --coast-threshold 10.0 \
     --force
 
 echo "✅ Future label generation completed!"
