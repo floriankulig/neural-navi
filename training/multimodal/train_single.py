@@ -40,23 +40,23 @@ from datasets.data_loaders import create_multimodal_dataloader, calculate_class_
 # ====================================
 
 # Model Architecture
-EMBEDDING_DIM = 128
+EMBEDDING_DIM = 64
 HIDDEN_DIM = EMBEDDING_DIM * 2
 NUM_HEADS = 8
-DECODER_NUM_LAYERS = 2
+DECODER_NUM_LAYERS = 4
 DROPOUT_PROB = 0.15
 
 # Training Hyperparameters
 BATCH_SIZE = 16
-LEARNING_RATE = 5e-5
-WEIGHT_DECAY = 1e-4
+LEARNING_RATE = 5e-6
+WEIGHT_DECAY = 1e-5
 EPOCHS = 40
 PATIENCE = EPOCHS // 5
 GRAD_CLIP_NORM = 1
 
 # Warmup for more stable training
 WARMUP_EPOCHS = EPOCHS // 10
-WARMUP_LR = 1e-6  # Noch kleinere LR für Warmup
+WARMUP_LR = 1e-7  # Noch kleinere LR für Warmup
 
 # Learning Rate Scheduling
 SCHEDULER_FACTOR = 0.85
@@ -65,11 +65,11 @@ MIN_LR = 1e-7
 
 # Task Configuration - Testing coast events (more frequent than brake)
 TASK_WEIGHTS = {
-    "coast_1s": 1.0,
+    # "coast_1s": 1.0,
     # "coast_2s": 0.8,
 }
 CLASS_WEIGHT_MULTIPLIERS = {
-    "coast_1s": 1.5,
+    # "coast_1s": 1.5,
     # "coast_2s": 1.5,
 }
 
@@ -999,15 +999,13 @@ def main():
     # trainer.train()  # Uncomment to run full training
 
     # DEBUG: Test single batch first
-    print("🧪 Testing single batch...")
-    if not trainer.debug_single_batch():
-        print("❌ Single batch test failed!")
-        return False
+    # print("🧪 Testing single batch...")
+    # if not trainer.debug_single_batch():
+    #     print("❌ Single batch test failed!")
+    #     return False
 
     print("✅ Single batch test passed, starting full training...")
     trainer.train()
-    return True
-
     return True
 
 

@@ -113,7 +113,13 @@ INCLUDE_CLASS_FEATURES_IN_MODEL = USE_MULTICLASS_DETECTION and USE_CLASS_ONEHOT_
 
 
 # Prediction tasks and horizons
-PREDICTION_TASKS = ["brake_1s", "brake_2s", "coast_1s", "coast_2s"]
+PREDICTION_TASKS = [  # "brake_1s", #"brake_2s",
+    "coast_1s",
+    "coast_2s",
+    "coast_3s",
+    "coast_4s",
+    "coast_5s",
+]
 
 # ==============================================
 # DATASET CONFIGURATION

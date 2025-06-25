@@ -22,7 +22,7 @@ echo "SLURM Node: $SLURMD_NODENAME"
 ARCHITECTURE=${ARCHITECTURE:-"simple_concat_lstm"}
 
 # Data paths
-DATA_DIR=${DATA_DIR:-"data/datasets/multimodal"}
+DATA_DIR=${DATA_DIR:-"data/datasets/multimodal/s2"}
 OUTPUT_DIR=${OUTPUT_DIR:-"data/models/multimodal/coast"}
 
 echo ""
