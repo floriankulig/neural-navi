@@ -21,23 +21,30 @@ from tqdm import tqdm
 # Add parent directory to path for imports from main project
 script_dir = Path(__file__).parent
 project_root = script_dir.parent
-sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / "src"))  # Adjust path as needed
 
 # Import project modules
-from config import DEFAULT_VISION_MODEL, IMAGE_COMPRESSION_QUALITY, DEFAULT_IMAGE_ROI
-from device import setup_device
-from imageprocessor import ImageProcessor
+from utils.feature_config import (
+    DEFAULT_VISION_MODEL,
+)
+from utils.config import (
+    IMAGE_COMPRESSION_QUALITY,
+    DEFAULT_IMAGE_ROI,
+)
+from utils.device import setup_device
+from processing.image_processor import ImageProcessor
 from ultralytics import YOLO
 
 
 # Constants
-METRICS_DIR = Path("metrics")
+METRICS_DIR = Path("evaluation")
 UNCOMPRESSED_DIR = METRICS_DIR / "test_images"
 RESULTS_DIR = METRICS_DIR / "results"
 COMPARISON_TYPES = ["uncompressed", "compressed", "compressed_resized"]
 
 # Vehicle classes in YOLOv11: car(2), motorcycle(3), bus(5), truck(7)
 VEHICLE_CLASSES = [2, 3, 5, 7]
+VEHICLE_CLASSES = [0]
 
 # Create results directory if it doesn't exist
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -323,7 +330,7 @@ def visualize_compression_performance(stats_df, save_path, selected_model):
             efficiency = (time_saved / base_time) * 100
             ax.text(
                 i,
-                -5,
+                -20,
                 f"↓ {efficiency:.1f}% faster",
                 ha="center",
                 va="top",
@@ -334,7 +341,7 @@ def visualize_compression_performance(stats_df, save_path, selected_model):
             efficiency = (-time_saved / base_time) * 100
             ax.text(
                 i,
-                -5,
+                -20,
                 f"↑ {efficiency:.1f}% slower",
                 ha="center",
                 va="top",
@@ -344,6 +351,7 @@ def visualize_compression_performance(stats_df, save_path, selected_model):
 
     plt.title("Image Processing Pipeline Performance")
     plt.ylabel("Time (milliseconds)")
+    plt.ylim(0, max(total_times) * 1.15)  # Set y-limit to 120% of max time
     plt.xlabel("Image Type")
     plt.legend(loc="upper right")
     plt.tight_layout()
@@ -702,7 +710,14 @@ def main():
     device = setup_device()
 
     # Load YOLO model
-    selected_model = args.model
+    selected_model = (
+        "data/models/yolo/" + args.model if not "/" in args.model else args.model
+    )
+    if not Path(selected_model).exists():
+        selected_model = selected_model + ".pt"
+    if not Path(selected_model).exists():
+        print(f"❌ Model file {selected_model} not found.")
+        return
     print(f"🧠 Loading {selected_model} model...")
     model = YOLO(selected_model)
     print("✅ Model loaded successfully.")
@@ -742,6 +757,7 @@ def main():
         ]
     )
 
+    selected_model = selected_model.split("/")[-1].replace(".pt", "")
     # Step 5: Visualize and save results
     visualize_results(
         stats_df,
