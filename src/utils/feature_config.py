@@ -8,7 +8,7 @@ All feature dimensions and model settings in one place.
 # ==============================================
 
 # Model paths
-DEFAULT_VISION_MODEL = "boxyn1.pt"
+DEFAULT_VISION_MODEL = "boxyn1hard.pt"
 
 # Class configuration
 USE_MULTICLASS_DETECTION = (
