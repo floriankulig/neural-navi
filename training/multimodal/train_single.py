@@ -40,28 +40,28 @@ from datasets.data_loaders import create_multimodal_dataloader, calculate_class_
 # ====================================
 
 # Model Architecture
-EMBEDDING_DIM = 64
+EMBEDDING_DIM = 64 
 HIDDEN_DIM = EMBEDDING_DIM * 2
 NUM_HEADS = 8
 DECODER_NUM_LAYERS = 4
 DROPOUT_PROB = 0.15
 
 # Training Hyperparameters
-BATCH_SIZE = 16
-LEARNING_RATE = 5e-6
-WEIGHT_DECAY = 1e-5
-EPOCHS = 40
+BATCH_SIZE = 256
+LEARNING_RATE = 5e-5
+WEIGHT_DECAY = LEARNING_RATE * 0.225
+EPOCHS = 50
 PATIENCE = EPOCHS // 5
 GRAD_CLIP_NORM = 1
 
 # Warmup for more stable training
 WARMUP_EPOCHS = EPOCHS // 10
-WARMUP_LR = 1e-7  # Noch kleinere LR für Warmup
+WARMUP_LR = LEARNING_RATE * 0.05  # Noch kleinere LR für Warmup
 
 # Learning Rate Scheduling
 SCHEDULER_FACTOR = 0.85
 SCHEDULER_PATIENCE = 6
-MIN_LR = 1e-7
+MIN_LR = LEARNING_RATE * 0.01  # Minimum learning rate
 
 # Task Configuration - Testing coast events (more frequent than brake)
 TASK_WEIGHTS = {
@@ -378,18 +378,6 @@ class Trainer:
             if MIXED_PRECISION and self.scaler:
                 self.scaler.scale(losses["loss_total"]).backward()
                 self.scaler.unscale_(self.optimizer)
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), GRAD_CLIP_NORM)
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
-            else:
-                losses["loss_total"].backward()
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), GRAD_CLIP_NORM)
-                self.optimizer.step()
-
-            # Im Training Loop nach backward():
-            if MIXED_PRECISION and self.scaler:
-                self.scaler.scale(losses["loss_total"]).backward()
-                self.scaler.unscale_(self.optimizer)
 
                 # Monitor gradients BEFORE clipping
                 grad_norm, has_nan_grads = monitor_gradients(
@@ -404,6 +392,20 @@ class Trainer:
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), GRAD_CLIP_NORM)
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
+            else:
+                losses["loss_total"].backward()
+                
+                # Monitor gradients for non-mixed precision too
+                grad_norm, has_nan_grads = monitor_gradients(
+                    self.model, epoch, batch_idx
+                )
+                
+                if has_nan_grads:
+                    logging.error("🚨 Skipping optimizer step due to NaN gradients")
+                    continue
+                    
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), GRAD_CLIP_NORM)
+                self.optimizer.step()
 
             # Accumulate losses
             for loss_name, loss_value in losses.items():

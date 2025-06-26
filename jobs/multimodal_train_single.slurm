@@ -19,11 +19,11 @@ echo "SLURM Node: $SLURMD_NODENAME"
 # ====================================
 
 # Architecture to train (only thing to change)
-ARCHITECTURE=${ARCHITECTURE:-"simple_concat_lstm"}
-
+ARCHITECTURE=${ARCHITECTURE:-"simple_query_transformer"}
+# ARCHITECTURE=${ARCHITECTURE:-"simple_concat_lstm"}
 # Data paths
-DATA_DIR=${DATA_DIR:-"data/datasets/multimodal/s2"}
-OUTPUT_DIR=${OUTPUT_DIR:-"data/models/multimodal/coast"}
+DATA_DIR=${DATA_DIR:-"data/datasets/multimodal/s1"}
+OUTPUT_DIR=${OUTPUT_DIR:-"data/models/multimodal/s1/coast"}
 
 echo ""
 echo "📋 Training Configuration:"
