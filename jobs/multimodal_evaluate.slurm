@@ -17,6 +17,10 @@ if [ ! -d "venv" ]; then
     python3 -m venv venv
 fi
 
+ARCHITECTURE=${ARCHITECTURE:-"s1/both/simple_concat_transformer"}
+# ARCHITECTURE=${ARCHITECTURE:-"s1/both_weighted/simple_concat_lstm"}
+
+
 # Activate virtual environment
 source venv/bin/activate
 
@@ -24,9 +28,7 @@ source venv/bin/activate
 pip install torch numpy matplotlib seaborn scikit-learn pandas h5py tqdm
 
 # Evaluate all trained models
-srun python3 -u training/multimodal/evaluate_models.py \
-    --models-dir data/models/multimodal \
-    --data-dir data/datasets/multimodal \
-    --output-dir data/evaluation/multimodal
+srun python3 -u evaluation/eval_single.py \
+    --model "$ARCHITECTURE"
 
 echo "✅ Model evaluation completed!"
