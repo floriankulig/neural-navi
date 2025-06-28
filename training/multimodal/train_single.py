@@ -31,8 +31,8 @@ from utils.feature_config import (
     PREDICTION_TASKS,
 )
 from model.factory import create_model_variant
-from utils.debug import NaNDebugger
-from datasets.data_loaders import create_multimodal_dataloader, calculate_class_weights
+from model.loss import create_unified_focal_loss
+from datasets.data_loaders import create_multimodal_dataloader
 
 
 # ====================================
@@ -40,7 +40,7 @@ from datasets.data_loaders import create_multimodal_dataloader, calculate_class_
 # ====================================
 
 # Model Architecture
-EMBEDDING_DIM = 64 
+EMBEDDING_DIM = 64
 HIDDEN_DIM = EMBEDDING_DIM * 2
 NUM_HEADS = 8
 DECODER_NUM_LAYERS = 4
@@ -62,21 +62,6 @@ WARMUP_LR = LEARNING_RATE * 0.05  # Noch kleinere LR für Warmup
 SCHEDULER_FACTOR = 0.85
 SCHEDULER_PATIENCE = 6
 MIN_LR = LEARNING_RATE * 0.01  # Minimum learning rate
-
-# Task Configuration - Testing coast events (more frequent than brake)
-TASK_WEIGHTS = {
-    "brake_1s": 1.0,
-    "brake_2s": 0.8,
-    "coast_1s": 0.8,
-    "coast_2s": 0.6,
-}
-CLASS_WEIGHT_MULTIPLIERS = {
-    # "coast_1s": 1.5,
-    # "coast_2s": 1.5,
-}
-
-
-# Data Configuration
 
 # Training Infrastructure
 NUM_WORKERS = 8
@@ -126,49 +111,6 @@ def monitor_gradients(model, epoch, batch_idx):
         logging.warning(f"⚠️ Large gradient norm: {total_norm:.3f}")
 
     return total_norm, len(nan_params) > 0
-
-
-class MultiTaskLoss(nn.Module):
-    """Multi-task loss with weighted BCE."""
-
-    def __init__(self, class_weights: dict):
-        super().__init__()
-        self.task_weights = TASK_WEIGHTS
-        self.criterions = {}
-
-        for task_name in PREDICTION_TASKS:
-            if task_name in class_weights:
-                base_pos_weight = class_weights[task_name][1]
-                multiplier = CLASS_WEIGHT_MULTIPLIERS.get(task_name, 1.0)
-                adjusted_pos_weight = base_pos_weight * multiplier
-                adjusted_pos_weight = max(
-                    adjusted_pos_weight, class_weights[task_name][0]
-                )  # Ensure it's not less than the negative class weight
-
-                self.criterions[task_name] = nn.BCEWithLogitsLoss(
-                    pos_weight=adjusted_pos_weight
-                )
-            else:
-                self.criterions[task_name] = nn.BCEWithLogitsLoss()
-
-    def forward(self, predictions: dict, targets: dict) -> dict:
-        """Calculate multi-task loss."""
-        losses = {}
-        total_loss = 0.0
-
-        for task_name in PREDICTION_TASKS:
-            if task_name in predictions and task_name in targets:
-                pred = predictions[task_name].squeeze(-1)
-                target = targets[task_name].float()
-
-                task_loss = self.criterions[task_name](pred, target)
-                losses[f"loss_{task_name}"] = task_loss
-
-                task_weight = self.task_weights.get(task_name, 1.0)
-                total_loss += task_weight * task_loss
-
-        losses["loss_total"] = total_loss
-        return losses
 
 
 class Trainer:
@@ -266,16 +208,8 @@ class Trainer:
 
         # Setup loss function
         class_weights = calculate_class_weights(self.train_loader.dataset)
-        self.loss_fn = MultiTaskLoss(class_weights)
+        self.loss_fn = create_unified_focal_loss()
         self.loss_fn = self.loss_fn.to(self.device)
-
-        # Log class weights
-        for task_name in PREDICTION_TASKS:
-            if task_name in class_weights:
-                base_weight = class_weights[task_name][1].item()
-                multiplier = CLASS_WEIGHT_MULTIPLIERS.get(task_name, 1.0)
-                final_weight = base_weight * multiplier
-                self.logger.info(f"   ⚖️ {task_name}: pos_weight={final_weight:.2f}")
 
         # Setup optimizer
         self.optimizer = optim.AdamW(
@@ -396,16 +330,16 @@ class Trainer:
                 self.scaler.update()
             else:
                 losses["loss_total"].backward()
-                
+
                 # Monitor gradients for non-mixed precision too
                 grad_norm, has_nan_grads = monitor_gradients(
                     self.model, epoch, batch_idx
                 )
-                
+
                 if has_nan_grads:
                     logging.error("🚨 Skipping optimizer step due to NaN gradients")
                     continue
-                    
+
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), GRAD_CLIP_NORM)
                 self.optimizer.step()
 

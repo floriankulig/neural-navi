@@ -470,20 +470,6 @@ def create_multimodal_dataloader(
     return dataloader
 
 
-def calculate_class_weights(dataset: MultimodalDataset) -> Dict[str, torch.Tensor]:
-    """Calculate class weights with extreme value capping."""
-    stats = dataset.get_label_statistics()
-    class_weights = {}
-
-    for horizon, _ in stats.items():
-        pos_weight = 2 if "brake" in horizon else 1.5
-        weights = torch.tensor([1.0, pos_weight])
-        class_weights[horizon] = weights
-        print(f"📊 {horizon} class weights: neg={weights[0]:.3f}, pos={weights[1]:.3f}")
-
-    return class_weights
-
-
 def print_feature_ranges(dataloader: DataLoader, num_batches: int = 5):
     """Print actual feature ranges for inspection."""
     print("📊 Feature ranges in dataset:")
