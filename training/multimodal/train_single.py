@@ -50,7 +50,7 @@ DROPOUT_PROB = 0.15
 BATCH_SIZE = 256
 LEARNING_RATE = 5e-5
 WEIGHT_DECAY = LEARNING_RATE * 0.225
-EPOCHS = 50
+EPOCHS = 60
 PATIENCE = EPOCHS // 5
 GRAD_CLIP_NORM = 1
 
@@ -65,8 +65,10 @@ MIN_LR = LEARNING_RATE * 0.01  # Minimum learning rate
 
 # Task Configuration - Testing coast events (more frequent than brake)
 TASK_WEIGHTS = {
-    # "coast_1s": 1.0,
-    # "coast_2s": 0.8,
+    "brake_1s": 1.0,
+    "brake_2s": 0.8,
+    "coast_1s": 0.8,
+    "coast_2s": 0.6,
 }
 CLASS_WEIGHT_MULTIPLIERS = {
     # "coast_1s": 1.5,
