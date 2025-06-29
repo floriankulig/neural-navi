@@ -26,7 +26,17 @@ pip install h5py pandas numpy scikit-learn tqdm
 # Prepare dataset with sliding windows
 srun python3 -u training/multimodal/prepare_dataset.py \
     --recordings-dir data/recordings \
+    --output-dir data/datasets/multimodal/s1 \
+    --sequence-stride 1 \
+
+srun python3 -u training/multimodal/prepare_dataset.py \
+    --recordings-dir data/recordings \
     --output-dir data/datasets/multimodal/s2 \
     --sequence-stride 2 \
+
+srun python3 -u training/multimodal/prepare_dataset.py \
+    --recordings-dir data/recordings \
+    --output-dir data/datasets/multimodal/s4 \
+    --sequence-stride 4 \
 
 echo "✅ Dataset preparation completed!"
