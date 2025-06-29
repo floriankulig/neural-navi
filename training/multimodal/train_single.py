@@ -67,7 +67,7 @@ MIN_LR = LEARNING_RATE * 0.01  # Minimum learning rate
 NUM_WORKERS = 8
 PIN_MEMORY = True
 MIXED_PRECISION = True
-LOG_INTERVAL = 20
+LOG_INTERVAL = 50
 
 
 def setup_logging(log_file: str):
@@ -207,7 +207,6 @@ class Trainer:
         self.logger.info(f"✅ Model: {total_params:,} parameters")
 
         # Setup loss function
-        class_weights = calculate_class_weights(self.train_loader.dataset)
         self.loss_fn = create_unified_focal_loss()
         self.loss_fn = self.loss_fn.to(self.device)
 
@@ -276,8 +275,11 @@ class Trainer:
 
         self.model.train()
 
-        epoch_losses = {f"loss_{task}": 0.0 for task in PREDICTION_TASKS}
+        epoch_losses = {}
         epoch_losses["loss_total"] = 0.0
+        for task in PREDICTION_TASKS:
+            epoch_losses[f"focal_loss_{task}"] = 0.0
+            epoch_losses[f"weighted_loss_{task}"] = 0.0
         num_batches = 0
 
         train_pbar = tqdm(
@@ -378,8 +380,12 @@ class Trainer:
         """Validate for one epoch."""
         self.model.eval()
 
-        epoch_losses = {f"loss_{task}": 0.0 for task in PREDICTION_TASKS}
+        epoch_losses = {}
         epoch_losses["loss_total"] = 0.0
+        for task in PREDICTION_TASKS:
+            epoch_losses[f"focal_loss_{task}"] = 0.0
+            epoch_losses[f"weighted_loss_{task}"] = 0.0
+
         num_batches = 0
 
         val_pbar = tqdm(
@@ -480,12 +486,12 @@ class Trainer:
             self.logger.info(f"📊 Epoch {epoch + 1} Summary:")
             self.logger.info(f"   🚆 Train - Total: {train_losses['loss_total']:.4f}")
             for task in PREDICTION_TASKS:
-                task_loss = train_losses.get(f"loss_{task}", 0.0)
+                task_loss = train_losses.get(f"weighted_loss_{task}", 0.0)
                 self.logger.info(f"     {task}: {task_loss:.4f}")
 
             self.logger.info(f"   🔍 Val - Total: {val_losses['loss_total']:.4f}")
             for task in PREDICTION_TASKS:
-                task_loss = val_losses.get(f"loss_{task}", 0.0)
+                task_loss = val_losses.get(f"weighted_loss_{task}", 0.0)
                 self.logger.info(f"     {task}: {task_loss:.4f}")
 
             self.logger.info(f"   🏆 Best: {self.best_val_loss:.4f}")
