@@ -28,6 +28,7 @@ from src.utils.feature_config import (
     GEAR_CLASSES,
     INCLUDE_CLASS_FEATURES_IN_MODEL,
     NUM_DETECTION_CLASSES,
+    PREDICTION_TASKS,
     USE_GEAR_ONEHOT,
     get_telemetry_input_dim,
     get_roi_dimensions,
@@ -48,6 +49,7 @@ class MultimodalDataset(Dataset):
         normalize: bool = True,
         img_width: int = None,
         img_height: int = None,
+        load_intensities: bool = False,
     ):
         """
         Initialize the multimodal dataset with full feature normalization.
@@ -66,10 +68,16 @@ class MultimodalDataset(Dataset):
         default_roi_width, default_roi_height = get_roi_dimensions()
         self.img_width = img_width or default_roi_width
         self.img_height = img_height or default_roi_height
+        self.load_intensities = load_intensities
 
         if target_horizons is None:
-            target_horizons = ["brake_1s", "brake_2s", "coast_1s", "coast_2s"]
+            target_horizons = PREDICTION_TASKS
         self.target_horizons = target_horizons
+
+        horizon_times = [h.split("_")[-1] for h in target_horizons]
+        self.intensity_targets = [
+            f"{value}_{horizon}" for horizon in horizon_times for value in ("brake_force", "acc_pos")
+        ]
 
         if not self.h5_file_path.exists():
             raise FileNotFoundError(f"HDF5 file not found: {self.h5_file_path}")
@@ -189,6 +197,11 @@ class MultimodalDataset(Dataset):
             self.labels_data = {}
             for horizon in self.target_horizons:
                 self.labels_data[horizon] = torch.from_numpy(f["labels"][horizon][:])
+            
+            # Load intensity labels
+            self.intensity_labels = {}
+            for horizon in self.intensity_targets:
+                self.intensity_labels[horizon] = torch.from_numpy(f["intensity_labels"][horizon][:])
 
             # Load metadata
             self.recording_names = [
@@ -225,6 +238,11 @@ class MultimodalDataset(Dataset):
             for horizon in self.target_horizons:
                 labels[horizon] = torch.from_numpy(np.array(f["labels"][horizon][idx]))
 
+            # Load intensity labels
+            intensity_labels = {}
+            for horizon in self.intensity_targets:
+                intensity_labels[horizon] = torch.from_numpy(f["intensity_labels"][horizon][idx])
+
         norm_telemetry, norm_detections = self._normalize_data(
             telemetry, detections, detection_mask
         )
@@ -239,6 +257,7 @@ class MultimodalDataset(Dataset):
             norm_detections,
             detection_mask,
             labels,
+            intensity_labels,
         )
         return self._data_cache[idx]
 
@@ -265,21 +284,29 @@ class MultimodalDataset(Dataset):
             labels = {}
             for horizon in self.target_horizons:
                 labels[horizon] = self.labels_data[horizon][idx]
+
+            intensities = {}
+            for horizon in self.intensity_targets:
+                intensities[horizon] = self.intensity_labels[horizon][idx]
         else:
             # Get from file
-            telemetry, detections, detection_mask, labels = self._get_data_from_file(
+            telemetry, detections, detection_mask, labels, intensities = self._get_data_from_file(
                 idx
             )
 
         # Process detection features
         detections = self._process_detection_features(detections)
 
-        return {
+        results = {
             "telemetry_seq": telemetry,
             "detection_seq": detections,
             "detection_mask": detection_mask,
             "targets": labels,
         }
+        if self.load_intensities:
+            results["intensities"] = intensities
+
+        return results
 
     def get_sample_info(self, idx: int) -> Dict[str, Any]:
         """Get metadata for a specific sample."""
@@ -422,6 +449,7 @@ def create_multimodal_dataloader(
     normalize: bool = True,
     img_width: int = None,
     img_height: int = None,  # ROI height
+    load_intensities: bool = False,
     **kwargs,
 ) -> DataLoader:
     """
@@ -454,6 +482,7 @@ def create_multimodal_dataloader(
         normalize=normalize,
         img_width=img_width,
         img_height=img_height,
+        load_intensities=load_intensities,
     )
 
     # Create DataLoader

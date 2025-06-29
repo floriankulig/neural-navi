@@ -206,6 +206,8 @@ class FutureLabelGenerator:
         for horizon in FUTURE_HORIZONS:
             result_data[f"brake_{horizon}s"] = [False] * len(df)
             result_data[f"coast_{horizon}s"] = [False] * len(df)
+            result_data[f"brake_force_{horizon}s"] = [0.0] * len(df)
+            result_data[f"acc_pos_{horizon}s"] = [0.0] * len(df)
 
         # Generate labels for each row
         for i in range(len(df)):
@@ -221,13 +223,22 @@ class FutureLabelGenerator:
 
                     # Coast label: ACCELERATOR_POS_D < threshold at future time
                     future_accel = df.iloc[future_idx]["ACCELERATOR_POS_D"]
+                    future_accel = float(future_accel)
                     result_data[f"coast_{horizon}s"][i] = (
-                        float(future_accel) < self.coast_threshold
+                        future_accel < self.coast_threshold
                     )
+                    # Intensity of coasting and braking
+                    future_brake_force = df.iloc[future_idx]["BRAKE_FORCE"]
+                    future_brake_force = max(0, float(future_brake_force))
+
+                    result_data[f"brake_force_{horizon}s"][i] = future_brake_force
+                    result_data[f"acc_pos_{horizon}s"][i] = future_accel
                 else:
                     # Future index out of bounds - set to False
                     result_data[f"brake_{horizon}s"][i] = False
                     result_data[f"coast_{horizon}s"][i] = False
+                    result_data[f"brake_force_{horizon}s"][i] = 0.0
+                    result_data[f"acc_pos_{horizon}s"][i] = 0.0
 
         return pd.DataFrame(result_data)
 

@@ -610,15 +610,24 @@ class DatasetPreparator:
 
         # Prepare labels
         label_data = {}
+        intensity_label_data = {}
         for horizon in [1, 2, 3, 4, 5]:
             brake_col = f"brake_{horizon}s"
             coast_col = f"coast_{horizon}s"
+            brake_force_col = f"brake_force_{horizon}s"
+            acc_pos_col = f"acc_pos_{horizon}s"
 
             label_data[brake_col] = np.array(
                 [seq["labels"][brake_col] for seq in sequences], dtype=bool
             )
             label_data[coast_col] = np.array(
                 [seq["labels"][coast_col] for seq in sequences], dtype=bool
+            )
+            intensity_label_data[brake_force_col] = np.array(
+                [seq["labels"][brake_force_col] for seq in sequences], dtype=bool
+            )
+            intensity_label_data[acc_pos_col] = np.array(
+                [seq["labels"][acc_pos_col] for seq in sequences], dtype=bool
             )
 
         # Metadata
@@ -642,6 +651,13 @@ class DatasetPreparator:
             labels_group = f.create_group("labels")
             for label_name, label_array in label_data.items():
                 labels_group.create_dataset(
+                    label_name, data=label_array, compression="gzip"
+                )
+
+            # Intensity labels
+            intensity_labels_group = f.create_group("intensity_labels")
+            for label_name, label_array in intensity_label_data.items():
+                intensity_labels_group.create_dataset(
                     label_name, data=label_array, compression="gzip"
                 )
 
