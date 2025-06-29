@@ -133,7 +133,7 @@ class ModelEvaluator:
             "hidden_dim": 128,
             "attention_num_heads": 8,
             "decoder_num_layers": 4,
-            "dropout_prob": 0.15,
+            "dropout_prob": 0,
             "prediction_tasks": tasks,
             "max_detections": MAX_DETECTIONS_PER_FRAME,
             "max_seq_length": SEQUENCE_LENGTH,
