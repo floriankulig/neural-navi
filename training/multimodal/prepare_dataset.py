@@ -353,14 +353,23 @@ class DatasetPreparator:
             last_row = sequence_df.iloc[
                 -1
             ]  # Use last frame for "predict future from now"
-            labels = {}
+            label_data = {}
+            intensity_label_data = {}
             for horizon in [1, 2, 3, 4, 5]:
                 brake_col = f"brake_{horizon}s"
                 coast_col = f"coast_{horizon}s"
+                brake_force_col = f"brake_force_{horizon}s"
+                acc_pos_col = f"acc_pos_{horizon}s"
 
                 # Handle missing columns gracefully
-                labels[brake_col] = bool(last_row.get(brake_col, False))
-                labels[coast_col] = bool(last_row.get(coast_col, False))
+                label_data[brake_col] = bool(last_row.get(brake_col, False))
+                label_data[coast_col] = bool(last_row.get(coast_col, False))
+                intensity_label_data[brake_force_col] = float(
+                    last_row.get(brake_force_col, 0.0)
+                )
+                intensity_label_data[acc_pos_col] = float(
+                    last_row.get(acc_pos_col, 0.0)
+                )
 
             # Create sequence dictionary
             sequence = {
@@ -370,7 +379,8 @@ class DatasetPreparator:
                 "telemetry_seq": telemetry_seq,
                 "detection_seq": detection_seq,
                 "detection_mask": detection_mask,
-                "labels": labels,
+                "labels": label_data,
+                "intensity_labels": intensity_label_data,
                 "timestamps": timestamps,
             }
 
@@ -624,10 +634,10 @@ class DatasetPreparator:
                 [seq["labels"][coast_col] for seq in sequences], dtype=bool
             )
             intensity_label_data[brake_force_col] = np.array(
-                [seq["labels"][brake_force_col] for seq in sequences], dtype=bool
+                [seq["intensity_labels"][brake_force_col] for seq in sequences], dtype=np.float32
             )
             intensity_label_data[acc_pos_col] = np.array(
-                [seq["labels"][acc_pos_col] for seq in sequences], dtype=bool
+                [seq["intensity_labels"][acc_pos_col] for seq in sequences], dtype=np.float32
             )
 
         # Metadata
