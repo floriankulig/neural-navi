@@ -74,6 +74,7 @@ class MultimodalDataset(Dataset):
             target_horizons = PREDICTION_TASKS
         self.target_horizons = target_horizons
 
+        # only relevant for evaluation how intensitites affect model predictions
         horizon_times = [h.split("_")[-1] for h in target_horizons]
         self.intensity_targets = [
             f"{value}_{horizon}" for horizon in horizon_times for value in ("brake_force", "acc_pos")
@@ -241,7 +242,7 @@ class MultimodalDataset(Dataset):
             # Load intensity labels
             intensity_labels = {}
             for horizon in self.intensity_targets:
-                intensity_labels[horizon] = torch.from_numpy(f["intensity_labels"][horizon][idx])
+                intensity_labels[horizon] = torch.from_numpy(np.array(f["intensity_labels"][horizon][idx]))
 
         norm_telemetry, norm_detections = self._normalize_data(
             telemetry, detections, detection_mask
