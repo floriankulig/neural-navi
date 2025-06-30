@@ -24,8 +24,8 @@ from src.utils.feature_config import PREDICTION_TASKS
 # Task Importance Weights for Multi-Task Learning
 TASK_WEIGHTS = {
     "brake_1s": 1.0,
-    "brake_2s": 0.8,
-    "coast_1s": 1.0,
+    "brake_2s": 0.95,
+    "coast_1s": 0.85,
     "coast_2s": 0.8,
 }
 
@@ -35,10 +35,10 @@ TASK_WEIGHTS = {
 # - Safety criticality (brake = safety-critical, coast = efficiency)
 # - Prediction horizon (1s = precise, 2s = longer horizon, less aggressive)
 FOCAL_CONFIG = {
-    "brake_1s": {"alpha": 0.2, "gamma": 3.5},  # Extreme imbalance, safety-critical
-    "brake_2s": {"alpha": 0.25, "gamma": 3.0},  # High imbalance, safety-critical
-    "coast_1s": {"alpha": 0.25, "gamma": 2.0},  # Moderate imbalance, efficiency
-    "coast_2s": {"alpha": 0.3, "gamma": 1.8},  # Moderate imbalance, longer horizon
+    "brake_1s": {"alpha": 0.2, "gamma": 3},  # Extreme imbalance, safety-critical
+    "brake_2s": {"alpha": 0.2, "gamma": 2.75},  # High imbalance, safety-critical
+    "coast_1s": {"alpha": 0.3, "gamma": 2},  # Moderate imbalance, efficiency
+    "coast_2s": {"alpha": 0.3, "gamma": 1.75},  # Moderate imbalance, longer horizon
 }
 
 # Training Monitoring
@@ -78,12 +78,15 @@ class FocalLoss(nn.Module):
         Returns:
             Scalar focal loss value
         """
+        # Convert targets to float at the beginning
+        targets = targets.float()
+        
         # Convert logits to probabilities
         probs = torch.sigmoid(logits)
 
         # Calculate base cross-entropy loss (per sample, no reduction)
         ce_loss = F.binary_cross_entropy_with_logits(
-            logits, targets.float(), reduction="none"
+            logits, targets, reduction="none"  # targets.float() nicht mehr nötig
         )
 
         # Calculate p_t: probability of the correct class
@@ -144,7 +147,6 @@ class UnifiedMultiTaskFocalLoss(nn.Module):
         """
         losses = {}
         total_loss = 0.0
-        task_count = 0
 
         # Compute loss for each active task
         for task_name in PREDICTION_TASKS:
@@ -161,14 +163,12 @@ class UnifiedMultiTaskFocalLoss(nn.Module):
                 task_weight = TASK_WEIGHTS.get(task_name, 1.0)
                 weighted_loss = task_weight * task_loss
                 total_loss += weighted_loss
-                task_count += 1
 
                 if LOG_PER_TASK_LOSSES:
                     losses[f"weighted_loss_{task_name}"] = weighted_loss
 
         # Store total loss
-        losses["focal_loss_total"] = total_loss
-        losses["active_task_count"] = task_count
+        losses["loss_total"] = total_loss
 
         return losses
 
