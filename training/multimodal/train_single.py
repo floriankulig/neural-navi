@@ -31,7 +31,7 @@ from utils.feature_config import (
     PREDICTION_TASKS,
 )
 from model.factory import create_model_variant
-from model.loss import create_unified_focal_loss
+from model.loss import create_unified_focal_loss, FOCAL_CONFIG, TASK_WEIGHTS
 from datasets.data_loaders import create_multimodal_dataloader
 
 
@@ -50,12 +50,12 @@ DROPOUT_PROB = 0.15
 BATCH_SIZE = 256
 LEARNING_RATE = 5e-5
 WEIGHT_DECAY = LEARNING_RATE * 0.225
-EPOCHS = 60
+EPOCHS = 100
 PATIENCE = EPOCHS // 5
 GRAD_CLIP_NORM = 1
 
 # Warmup for more stable training
-WARMUP_EPOCHS = EPOCHS // 10
+WARMUP_EPOCHS = min(EPOCHS // 10, 8)
 WARMUP_LR = LEARNING_RATE * 0.05  # Noch kleinere LR für Warmup
 
 # Learning Rate Scheduling
@@ -247,6 +247,10 @@ class Trainer:
             "best_val_loss": self.best_val_loss,
             "arch_name": self.arch_name,
             "training_history": self.training_history,
+            "loss_config": {
+                "task_weights": TASK_WEIGHTS,
+                "focal_config": FOCAL_CONFIG,
+            },
         }
 
         if self.scaler:
@@ -515,9 +519,16 @@ class Trainer:
         epoch_pbar.close()
 
         # Save final training logs
+        final_logs = {
+            "loss_config": {
+                "task_weights": TASK_WEIGHTS,
+                "focal_config": FOCAL_CONFIG,
+            },
+            "training_history": self.training_history,
+        }
         logs_path = self.output_dir / "training_logs.json"
         with open(logs_path, "w") as f:
-            json.dump(self.training_history, f, indent=2)
+            json.dump(final_logs, f, indent=2)
 
         total_time = time.time() - start_time
         self.logger.info(f"✅ Training completed in {total_time/60:.1f} minutes")
