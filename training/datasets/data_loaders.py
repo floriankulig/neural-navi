@@ -201,8 +201,9 @@ class MultimodalDataset(Dataset):
             
             # Load intensity labels
             self.intensity_labels = {}
-            for horizon in self.intensity_targets:
-                self.intensity_labels[horizon] = torch.from_numpy(f["intensity_labels"][horizon][:])
+            if self.load_intensities:
+                for horizon in self.intensity_targets:
+                    self.intensity_labels[horizon] = torch.from_numpy(f["intensity_labels"][horizon][:])
 
             # Load metadata
             self.recording_names = [
@@ -241,8 +242,9 @@ class MultimodalDataset(Dataset):
 
             # Load intensity labels
             intensity_labels = {}
-            for horizon in self.intensity_targets:
-                intensity_labels[horizon] = torch.from_numpy(np.array(f["intensity_labels"][horizon][idx]))
+            if self.load_intensities:
+                for horizon in self.intensity_targets:
+                    intensity_labels[horizon] = torch.from_numpy(np.array(f["intensity_labels"][horizon][idx]))
 
         norm_telemetry, norm_detections = self._normalize_data(
             telemetry, detections, detection_mask
@@ -287,8 +289,9 @@ class MultimodalDataset(Dataset):
                 labels[horizon] = self.labels_data[horizon][idx]
 
             intensities = {}
-            for horizon in self.intensity_targets:
-                intensities[horizon] = self.intensity_labels[horizon][idx]
+            if self.load_intensities:
+                for horizon in self.intensity_targets:
+                    intensities[horizon] = self.intensity_labels[horizon][idx]
         else:
             # Get from file
             telemetry, detections, detection_mask, labels, intensities = self._get_data_from_file(
