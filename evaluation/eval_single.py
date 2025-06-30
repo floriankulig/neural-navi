@@ -159,6 +159,7 @@ class ModelEvaluator:
             shuffle=False,  # Deterministic evaluation
             num_workers=8,
             pin_memory=True,
+            load_into_memory=True,
             target_horizons=self.tasks,
         )
 
@@ -620,7 +621,7 @@ class ModelEvaluator:
             sns.heatmap(
                 cm_norm,
                 annot=True,
-                fmt=".2f",
+                fmt=".3f",
                 cmap="Blues",
                 xticklabels=["Neg", "Pos"],
                 yticklabels=["Neg", "Pos"],

@@ -93,7 +93,7 @@ class TransformerAttentionAnalyzer:
             "embedding_dim": 64,
             "hidden_dim": 128,
             "attention_num_heads": 8,
-            "decoder_num_layers": 5,
+            "decoder_num_layers": 4,
             "dropout_prob": 0,
             "prediction_tasks": tasks,
             "max_detections": MAX_DETECTIONS_PER_FRAME,
