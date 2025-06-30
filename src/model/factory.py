@@ -180,8 +180,8 @@ if __name__ == "__main__":
         "embedding_dim": 64,
         "hidden_dim": 128,
         "attention_num_heads": 4,
-        "decoder_num_layers": 3,
-        "dropout_prob": 0.3,
+        "decoder_num_layers": 4,
+        "dropout_prob": 0.15,
         # Spezifische Parameter
         "prediction_tasks": PREDICTION_TASKS,  # Zeithorizonte in Sekunden
         "include_brake_force": False,
