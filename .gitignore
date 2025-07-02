@@ -16,6 +16,7 @@ data/models/multimodal
 evaluation/*.jpg
 evaluation/*results*
 evaluation/*/*.png
+evaluation/*/*.txt
 evaluation/*/*.html
 evaluation/*/*.csv
 
