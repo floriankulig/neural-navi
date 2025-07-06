@@ -91,7 +91,7 @@ neural-navi/
 │       └── auto_annotate.py      # YOLO-based annotation
 │
 ├── evaluation/              # 📊 Metrics, visualization & analysis
-├── tests/                   # 📊 Unit tests & integration tests
+├── tests/                   # 📊 Development test scripts (access to ECU, sensor sync, etc.)
 ├── jobs/                    # 🖥️ SLURM job scripts for cluster computing
 └── data/                    # 📁 Datasets, models, recordings
     └── ...                  # see below
