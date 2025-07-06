@@ -12,7 +12,6 @@ help:
 	@echo ""
 	@echo "📹 Recording:"
 	@echo "  record           Start drive recording (with live preview)"
-	@echo "  record-quiet     Start drive recording (no preview)"
 	@echo ""
 	@echo "🔍 Detection:"
 	@echo "  detect           Run vehicle detection on recordings"
@@ -36,13 +35,7 @@ install:
 
 # Recording commands
 record:
-	python record_drive.py --show-live --with-logs
-
-record-quiet:
-	python record_drive.py --with-logs
-
-record-debug:
-	python record_drive.py --show-live --with-logs --interval 1.0
+	python record_drive.py
 
 # Detection commands  
 detect:
