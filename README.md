@@ -2,7 +2,7 @@
 
 **Multimodal Machine Learning Approach for Real-Time Critical Driving Situation Recognition in Preventive Driver Assistance Systems**
 
-Neural-Navi is a research project that combines camera data and vehicle telemetry to detect critical driving situations in real-time. The system aims to predict braking events 1-5 seconds in advance while considering realistic hardware constraints.
+Neural-Navi is a research project that combines camera data and vehicle telemetry to detect critical driving situations in real-time. The system predicts braking and coasting events 1-5 seconds in advance while considering realistic hardware constraints for automotive deployment.
 
 ## 🚀 Quick Start
 
@@ -41,7 +41,7 @@ Neural-Navi is a research project that combines camera data and vehicle telemetr
 make record
 
 # Direct execution
-python record_drive.py --show-live --with-logs
+python record_drive.py
 ```
 
 #### Detect vehicles in recordings:
@@ -51,13 +51,14 @@ make detect
 # or: python detect_vehicles.py --recordings data/recordings
 ```
 
-#### Train models:
+#### Train multimodal models:
 ```bash
-# YOLO on Boxy dataset (via SLURM)
-sbatch jobs/boxy_train.slurm
 
-# Multimodal model (planned)
-python training/multimodal/train_multimodal.py
+# Train single architecture
+make train-single-arch ARCH=simple_concat_transformer
+
+# Evaluate trained models
+make evaluate-multimodal
 ```
 
 ## 📁 Project Structure
@@ -68,28 +69,32 @@ neural-navi/
 ├── detect_vehicles.py       # 🔍 Vehicle detection in recordings
 │
 ├── src/                     # 🔧 Core Application Code
-│   ├── recording/           # Data acquisition (camera, telemetry, DriveRecorder)
+│   ├── recording/           # Data acquisition (camera, telemetry hardware access)
 │   ├── processing/          # Data preprocessing & feature engineering
-│   │   ├── features/        # Derived features (gear, brake force)
-│   │   └── detection/       # YOLO-based object detection
+│   │   └── features/        # Derived features (gear, brake force)
 │   ├── model/               # Neural network architectures
 │   │   ├── encoder.py       # Input encoders (Simple, Attention)
 │   │   ├── fusion.py        # Fusion modules (Concat, Cross-Attention, Query)
 │   │   ├── decoder.py       # Output decoders (LSTM, Transformer)
-│   │   └── factory.py       # Model factory for different configurations
+│   │   ├── factory.py       # Model factory for different configurations
+│   │   └── loss.py          # Unified focal loss system
 │   └── utils/               # Utilities (config, device setup, helpers)
 │
 ├── training/                # 🧠 Training Pipeline & Experiments
-│   ├── datasets/            # Dataset preparation (Boxy, NuImages)
+│   ├── datasets/            # Dataset preparation (Boxy, multimodal)
+│   │   ├── data_loaders.py  # HDF5-based efficient data loading
+│   │   └── boxy_prep...     # Boxy dataset preprocessing
 │   ├── yolo/                # YOLO training for vehicle detection
 │   └── multimodal/          # Multimodal model training
+│       ├── prepare_dataset.py    # H5 dataset preparation
+│       ├── train_single.py       # Single architecture training
+│       └── auto_annotate.py      # YOLO-based annotation
 │
 ├── evaluation/              # 📊 Metrics, visualization & analysis
-├── jobs/                    # ⚡ SLURM scripts for cluster training
-├── configs/                 # ⚙️ Global configuration files
-├── data/                    # 💾 Data storage (gitignored)
-│   └── ... see below
-└── Makefile                 # 🛠️ Development commands
+├── tests/                   # 📊 Unit tests & integration tests
+├── jobs/                    # 🖥️ SLURM job scripts for cluster computing
+└── data/                    # 📁 Datasets, models, recordings
+    └── ...                  # see below
 ```
 
 ### 📁 Data Directory Structure
@@ -101,112 +106,37 @@ data/                           # 💾 Data storage (gitignored)
 │   │   ├── annotations/        # Annotated recording data
 │   │   ├── boxy_yolo_n1/       # Boxy dataset in YOLO format (1 class)
 │   │   └── nuimages_yolo/      # NuImages dataset in YOLO format
-│   ├── raw/                    # Raw dataset files
+│   ├── raw/                    # Raw dataset files (Boxy, NuImages)
 │   ├── boxy_labels.json        # Boxy dataset labels
-│   ├── boxy_labels_val.json    # Boxy validation labels
 │   └── dataset.yaml            # YOLO dataset configuration
 ├── models/                     # Trained model checkpoints
-│   ├── yolo_best.pt            # Best YOLO model checkpoint
-│   └── multimodal_*.pt         # Multimodal model checkpoints
+│   ├── yolo/                   # Best YOLO model checkpoints
+│   └── multimodal/             # Multimodal model checkpoints
 └── recordings/                 # Raw driving recordings
     └── YYYY-MM-DD_HH-MM-SS/    # Recording sessions (timestamped)
         ├── telemetry.csv       # OBD-II data with derived features
+        ├── future_labels.csv   # Ground truth future labels for multimodal training (once generated)
         ├── annotations.csv     # YOLO detection results
         └── *.jpg               # Camera frames
 ```
 
-## 🎮 Usage Guide
 
-### Recording Driving Data
+## 🏗️ Model Architecture
 
-The DriveRecorder captures synchronized video and telemetry data:
+### Modular Design for Systematic Evaluation
 
-```bash
-# Basic recording
-make record
-# or: python record_drive.py
+The system implements a modular architecture allowing systematic comparison of different component combinations:
 
-# With live preview and logging (default via make)
-python record_drive.py --show-live --with-logs
-
-# Custom capture interval (default: 0.5s = 2Hz)
-python record_drive.py --interval 0.25
-```
-
-**Features:**
-- Simultaneous camera and OBD-II data capture
-- Automatic hardware detection (Raspberry Pi Camera vs USB webcam)
-- Synchronized timestamps for all data
-- Real-time feature calculation (gear detection, brake force estimation)
-
-### Training Models
-
-#### YOLO Vehicle Detection
-```bash
-# Prepare Boxy dataset
-python training/datasets/boxy_preparation.py
-
-# YOLO training (SLURM)
-sbatch jobs/boxy_train.slurm
-
-# Local training (development)
-python training/yolo/train_boxy.py
-```
-
-#### Multimodal Brake Prediction
-```bash
-# Training with default config (planned)
-python training/multimodal/train_multimodal.py
-
-# With custom config (planned)
-python training/multimodal/train_multimodal.py --config configs/experiment1.yaml
-```
-
-### Vehicle Detection & Analysis
-
-```bash
-# Interactive vehicle detection viewer
-make detect
-# or: python detect_vehicles.py --recordings data/recordings
-
-# Adjust confidence threshold
-python detect_vehicles.py --recordings data/recordings --conf 0.3
-
-# Use custom model
-python detect_vehicles.py --model yolo_best.pt
-```
-
-## 🔧 Configuration
-
-### Global Settings
-Edit `src/utils/config.py` for global settings:
-- Recording parameters (resolution, ROI, intervals)
-- OBD-II settings and calibration values
-- Vision model settings
-- Hardware optimizations
-
-### Training Configurations
-Training configs organized by purpose:
-- `training/yolo/configs/` - YOLO-specific configs for different datasets
-- `training/multimodal/configs/` - Multimodal model configurations
-- `jobs/` - SLURM scripts for cluster training
-
-## 🧠 Model Architecture
-
-### Multimodal Brake Prediction
-
-The core innovation is a modular architecture combining the following components:
-
-1. **Input Encoders**
+**Input Encoders**
    - `SimpleInputEncoder`: Baseline with independent processing
    - `AttentionInputEncoder`: Advanced with self-attention mechanisms
 
-2. **Fusion Modules**
+**Fusion Modules**
    - `SimpleConcatenationFusion`: Efficient concatenation-based fusion
    - `CrossModalAttentionFusion`: Advanced cross-modal attention
    - `ObjectQueryFusion`: DETR-inspired learnable queries
 
-3. **Output Decoders**
+**Output Decoders**
    - `LSTMOutputDecoder`: Sequential processing for temporal patterns
    - `TransformerOutputDecoder`: Parallel processing with attention
 
@@ -227,7 +157,7 @@ config = {
     "encoder_type": "attention",        # simple | attention
     "fusion_type": "cross_attention",   # concat | cross_attention | query  
     "decoder_type": "lstm",            # lstm | transformer
-    "prediction_tasks": ["brake_1s", "brake_2s"],
+    "prediction_tasks": ["brake_1s", "brake_2s", "coast_1s", "coast_2s"],
     "embedding_dim": 64,
     "max_detections": 12,
     "max_seq_length": 20
@@ -270,7 +200,31 @@ This project develops a **multimodal Machine Learning approach for real-time cri
 #### **Multimodal Architecture Innovation**
 - **Modular Design Philosophy**: Encoder/Fusion/Decoder combinatorics for systematic ablation studies
 - **Cross-Modal Attention**: Telemetry-guided object detection relevance scoring
-- **Temporal Sequence Modeling**: 1-5s prediction horizons with hardware-aware latency optimization
+- **Temporal Sequence Modeling**: 1-2s prediction horizons with hardware-aware latency optimization
+
+## 📊 Dataset & Training Status
+
+### Dataset Statistics
+- **Total Sequences**: 10,679 (from 12 recordings)
+- **Brake Events**: 306 sequences (2.9% - extremely imbalanced)
+- **Coast Events**: ~3,050 sequences (7.1% - moderately imbalanced)
+- **Dataset Splits**: 70.4% train / 19.5% val / 10.1% test
+- **Sequence Length**: 20 frames (10 seconds at 2Hz)
+
+### Prediction Tasks
+```python
+PREDICTION_TASKS = [
+    "brake_1s",   # Primary safety task (1.6% positive rate)
+    "brake_2s",   # Secondary safety task  
+    "coast_1s",   # Primary efficiency task (7.1% positive rate)
+    "coast_2s"    # Secondary efficiency task
+]
+```
+
+### Advanced Loss System
+- **Focal Loss**: Addresses extreme class imbalance (1:63 ratio for brake events)
+- **Task Weighting**: Safety-critical tasks prioritized over efficiency tasks
+- **Multi-Task Learning**: Simultaneous prediction across multiple horizons
 
 ## 🛠️ Development & Cluster Computing
 
@@ -285,8 +239,14 @@ sbatch jobs/boxy_train.slurm
 # YOLO validation
 sbatch jobs/val_yolo.slurm
 
-# Create visualizations
-sbatch jobs/boxy_visualizer.slurm
+# Multimodal pipeline
+sbatch jobs/multimodal_pipeline_full.slurm
+
+# Train specific architecture
+sbatch --export=ARCHITECTURE=simple_concat_transformer jobs/multimodal_train_single.slurm
+
+# Evaluate models
+sbatch jobs/multimodal_evaluate.slurm
 ```
 
 ### Adding New Features
@@ -300,7 +260,7 @@ sbatch jobs/boxy_visualizer.slurm
 
 ### Hardware Requirements
 - **Recommended**: Raspberry Pi 5 (8GB RAM)
-- **Development**: Modern laptop/desktop (scripts optimized for 🍎 Apple Silicon Chips)
+- **Development**: Modern laptop/desktop with GPU for training
 
 ### Latency Breakdown (Raspberry Pi 5 8GB + OpenVINO)
 ```
@@ -310,11 +270,16 @@ Camera Capture             ~5ms          ~10MB       PiCamera2 1080p
 YOLO Inference (YOLOv12n)  ~80ms        ~50MB        OpenVINO FP16/FP32
 YOLO Inference (YOLOv12s)  ~200ms       ~150MB       (extrapolated)
 Telemetry Processing       ~2ms          ~1MB        OBD-II + Features
-Multimodal Model           ~TBD          ~TBD        In Development
+Multimodal Model           ~5-15ms       ~10MB       Depending on architecture
 Decision Making            ~1ms          ~1MB        Logic Layer
 ─────────────────────────────────────────────────────────────────
-Total Pipeline (YOLOv12n)  ~90ms+        ~62MB       Real-Time Capable
+Total Pipeline (YOLOv12n)  ~95-110ms     ~72MB       Real-Time Capable
 ```
+
+### Training Performance
+- **GPU Memory**: 4-16GB recommended for full dataset
+- **Batch Size**: 256 (optimized for Nvidia A100 GPUs)
+- **Mixed Precision**: Enabled for faster training
 
 ## 🎯 Project Status
 
@@ -323,14 +288,10 @@ Total Pipeline (YOLOv12n)  ~90ms+        ~62MB       Real-Time Capable
 - ✅ **Feature Engineering** (Gear detection, brake force estimation)
 - ✅ **Modular Model Architecture** (Encoder/Fusion/Decoder)
 - ✅ **OBD-II Reverse Engineering** (Proprietary brake signal extraction)
-- 🔄 **Multimodal Training Pipeline** (In Progress)
-- ⏳ **Real-time Inference Pipeline** (Planned)
-- ⏳ **Hardware Optimization** (Planned)
-
-## 📄 License
-
-This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
-
----
+- ✅ **Multimodal Training Pipeline** (Full H5-based pipeline with focal loss)
+- ✅ **Dataset Preparation** (42,686 sequences from 12 recordings)
+- ✅ **Systematic Architecture Evaluation** (12 architecture variants)
+- ✅ **Model Evaluation & Selection** (In Progress)
+- ⏳ **Sampling Strategy (Training)** (Planned)
 
 **Note**: This is a research project focused on automotive AI safety systems. It is not intended for production use in vehicles without proper safety validation and certification.

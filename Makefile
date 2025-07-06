@@ -154,9 +154,6 @@ train-all-multimodal:
 evaluate-multimodal:
 	sbatch jobs/multimodal_evaluate.slurm
 
-run-full-pipeline:
-	sbatch jobs/multimodal_pipeline_full.slurm
-
 # Local development commands
 test-dataloader:
 	python training/datasets/data_loaders.py --h5-file data/datasets/multimodal/train.h5 --batch-size 4
@@ -181,9 +178,6 @@ help-multimodal:
 	@echo "  train-single-arch      Train single architecture (use ARCH=name)"
 	@echo "  train-all-multimodal   Train all 12 architectures"
 	@echo "  evaluate-multimodal    Evaluate all trained models"
-	@echo ""
-	@echo "🚀 Full Pipeline:"
-	@echo "  run-full-pipeline      Run complete pipeline (data → training → evaluation)"
 	@echo ""
 	@echo "🔧 Development:"
 	@echo "  test-dataloader        Test multimodal dataloader"
