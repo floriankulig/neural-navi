@@ -2,7 +2,7 @@
 
 **Multimodal Machine Learning Approach for Real-Time Critical Driving Situation Recognition in Preventive Driver Assistance Systems**
 
-Neural-Navi is a research project that combines camera data and vehicle telemetry to detect critical driving situations in real-time. The system predicts braking and coasting events 1-5 seconds in advance while considering realistic hardware constraints for automotive deployment.
+Neural-Navi is a research project that combines camera data and vehicle telemetry to detect critical driving situations in real-time. The system predicts braking and coasting events 1-5 seconds in advance while considering realistic hardware constraints for automotive deployment. By successfully predicting necessary braking in the future, we can make driving more economic and safe.
 
 ## 🏆 Key Research Findings
 
