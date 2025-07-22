@@ -293,11 +293,11 @@ Total Pipeline             ~133ms        ~1.4GB      Real-Time Capable
 
 ## 🎯 Project Status
 
+- ✅ **Feature Engineering** (Gear detection, brake force estimation)
+- ✅ **OBD-II Reverse Engineering** (Proprietary brake signal extraction)
 - ✅ **Data Recording System** (Camera + OBD-II)
 - ✅ **YOLO Vehicle Detection** (Finetuned on Boxy dataset)
-- ✅ **Feature Engineering** (Gear detection, brake force estimation)
 - ✅ **Modular Model Architecture** (Encoder/Fusion/Decoder)
-- ✅ **OBD-II Reverse Engineering** (Proprietary brake signal extraction)
 - ✅ **Multimodal Training Pipeline** (Full H5-based pipeline with focal loss)
 - ✅ **Dataset Preparation** (42,686 sequences from 12 recordings)
 - ✅ **Systematic Architecture Evaluation** (Transformer > LSTM validated)
