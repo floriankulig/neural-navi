@@ -177,8 +177,6 @@ For detailed information about specific components, see:
 
 ### Proven Working Configurations
 
-**⚠️ Training Status**: Only `simple_concat_*` architectures are stable during training. Custom attention implementations have convergence issues.
-
 ```python
 # Recommended stable configuration
 BEST_CONFIG = {
