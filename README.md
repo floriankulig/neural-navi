@@ -175,11 +175,11 @@ For detailed information about specific components, see:
 
 ## 🏗️ Model Architecture
 
-### Proven Working Configurations
+### Example Configuration
 
 ```python
 # Recommended stable configuration
-BEST_CONFIG = {
+SOME_CONFIG = {
     "encoder_type": "simple",        # Baseline with independent processing
     "fusion_type": "concat",         # Efficient concatenation-based fusion  
     "decoder_type": "transformer",   # Superior performance vs LSTM
@@ -199,7 +199,7 @@ architectures = {
     "fusion": ["concat", "cross_attention", "query"],
     "decoders": ["lstm", "transformer"]
 }
-# → 2 × 3 × 2 = 12 architecture variants for comparison
+# → 2 × 3 × 2 = 12 architecture variants for comparison and ablation
 
 # Create model via Factory Pattern
 from src.model.factory import create_model_variant
